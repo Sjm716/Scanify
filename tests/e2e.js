@@ -5,7 +5,7 @@
 // Usage: node tests/e2e.js [screenshot-dir]
 
 import { spawn, execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -168,6 +168,26 @@ async function main() {
     const info = execFileSync('pdfinfo', [pdfPath], { encoding: 'utf8' });
     assert.match(info, /Pages:\s+2/);
     assert.match(info, /Page size:\s+(612 x 792|792 x 612) pts \(letter\)/);
+
+    // --- Export as JPG images: one file per page --------------------------
+    await page.click('[data-action="share"]');
+    await page.waitForSelector('#sheet:not([hidden]) [data-sheet-action="save"]');
+    await page.click('[data-seg="format"] [data-value="jpg"]');
+    assert.ok(await page.locator('[data-page-size]').isHidden(), 'page size only applies to PDF');
+    assert.match(await page.textContent('[data-summary]'), /2 pages as 2 JPG images/);
+    await shot('07b-export-jpg');
+    const jpgs = [];
+    page.on('download', (d) => jpgs.push(d));
+    await page.click('[data-sheet-action="save"]');
+    await page.waitForFunction(() => !document.querySelector('#toast').hidden);
+    await page.waitForTimeout(1000);
+    assert.deepEqual(jpgs.map((d) => d.suggestedFilename()).sort(), ['Invoices - page 1.jpg', 'Invoices - page 2.jpg']);
+    for (const d of jpgs) {
+      const path = join(tmp, d.suggestedFilename());
+      await d.saveAs(path);
+      const head = readFileSync(path).subarray(0, 3);
+      assert.deepEqual([...head], [0xff, 0xd8, 0xff], 'a JPEG file');
+    }
 
     // Home shows the group.
     await page.click('[data-action="home"]');
