@@ -1,0 +1,13 @@
+{
+  "name": "scanify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scanify: turn photos of documents into clean, square PDFs",
+  "type": "module",
+  "scripts": {
+    "start": "node tools/serve.cjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:e2e": "node tests/e2e.js",
+    "logo": "node tools/make-logo.cjs"
+  }
+}
