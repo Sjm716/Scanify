@@ -194,6 +194,30 @@ h1 { font-size: 1.2rem; font-weight: 700; }
 .crop-frame { position: relative; touch-action: none; }
 .crop-frame canvas, .preview-stage canvas { display: block; max-width: 100%; max-height: 100%; }
 .preview-stage canvas { box-shadow: var(--shadow); background: #fff; }
+.text-canvas { touch-action: none; cursor: crosshair; }
+.center { text-align: center; margin: 4px 0 0; }
+
+/* Text sheet */
+.sheet textarea {
+  font: inherit; color: var(--text); padding: 12px; border-radius: 10px; resize: vertical;
+  border: 1px solid var(--border); background: var(--bg); width: 100%; min-height: 84px;
+}
+.swatches { display: flex; flex-wrap: wrap; gap: 10px; }
+.swatch {
+  width: 40px; height: 40px; border-radius: 50%; padding: 0; cursor: pointer; position: relative;
+  border: 2px solid var(--border);
+  /* Checkerboard behind the colour shows that it is see-through. */
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%),
+    linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%);
+  background-size: 12px 12px;
+  background-position: 0 0, 6px 6px;
+  overflow: hidden;
+}
+.swatch span { position: absolute; inset: 0; border-radius: 50%; }
+.swatch[aria-checked="true"] { outline: 3px solid var(--primary); outline-offset: 2px; }
+.swatch.none span { background: linear-gradient(135deg, transparent 46%, var(--danger) 46%, var(--danger) 54%, transparent 54%); }
 .crop-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .crop-shade { fill: rgba(0, 0, 0, 0.45); }
 .crop-poly { fill: none; stroke: var(--primary); stroke-width: 2.5; vector-effect: non-scaling-stroke; }

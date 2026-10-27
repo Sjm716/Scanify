@@ -148,6 +148,37 @@ async function main() {
     await page.locator('#brightness').fill('30');
     await page.waitForTimeout(300);
     await shot('04-adjust');
+    await page.click('[data-action="editor-next"]'); // → Text
+
+    // --- Text over the page ---------------------------------------------
+    await page.waitForSelector('#panel-text.active');
+    await page.click('[data-action="text-add"]');
+    await page.fill('#sheet [data-text]', 'PAID');
+    await page.click('#sheet [data-pick="bg"] [data-value="blue"]');
+    // Blue is dark, so the text colour switches to white automatically.
+    assert.equal(await page.getAttribute('#sheet [data-pick="ink"] [data-value="white"]', 'aria-checked'), 'true');
+    await page.click('#sheet [data-pick="size"] [data-value="l"]');
+    await shot('04b-text-sheet');
+    await page.click('#sheet [data-sheet-action="ok"]');
+    // Tapping an empty spot adds text right there.
+    const tc = await page.locator('#text-canvas').boundingBox();
+    await page.mouse.click(tc.x + tc.width * 0.5, tc.y + tc.height * 0.85);
+    await page.fill('#sheet [data-text]', 'Second note');
+    await page.click('#sheet [data-pick="bg"] [data-value="none"]');
+    await page.click('#sheet [data-sheet-action="ok"]');
+    // Drag the first note down a little.
+    const first = await page.evaluate(() => window.scanify.state.editor.settings.annotations[0]);
+    const fx = tc.x + (first.x + 0.03) * tc.width, fy = tc.y + (first.y + 0.02) * tc.height;
+    await page.mouse.move(fx, fy);
+    await page.mouse.down();
+    await page.mouse.move(fx, fy + tc.height * 0.1, { steps: 5 });
+    await page.mouse.up();
+    const notes = await page.evaluate(() => window.scanify.state.editor.settings.annotations);
+    assert.deepEqual(notes.map((n) => [n.text, n.bg, n.ink, n.size]), [['PAID', 'blue', 'white', 'l'], ['Second note', 'none', 'black', 'l']]);
+    assert.ok(notes[0].y > first.y + 0.05, 'dragging moved the text');
+    await page.waitForTimeout(200);
+    await shot('04c-text');
+
     await page.click('[data-action="editor-next"]'); // Save → choose group
     await page.click('[data-sheet-action="new"]');
     await page.fill('#sheet input', 'Invoices');
@@ -156,6 +187,28 @@ async function main() {
     await page.waitForSelector('#sheet:not([hidden]) [data-sheet-action="done"]');
     await shot('05-page-added');
     await page.click('[data-sheet-action="done"]');
+
+    // The saved page has the 30%-transparent blue box burned in.
+    const sample = await page.evaluate(async () => {
+      const { db, state } = window.scanify;
+      const group = await db.getGroup(state.groupId);
+      const scan = await db.getScan(group.scanIds[0]);
+      const bmp = await createImageBitmap(scan.processed);
+      const c = new OffscreenCanvas(bmp.width, bmp.height);
+      const ctx = c.getContext('2d');
+      ctx.drawImage(bmp, 0, 0);
+      const a = scan.settings.annotations[0];
+      // Just inside the box's top-left corner: background, not text.
+      const x = Math.round(a.x * bmp.width + bmp.width * 0.012), y = Math.round(a.y * bmp.height + bmp.width * 0.012);
+      return [...ctx.getImageData(x, y, 1, 1).data];
+    });
+    // A 70%-opaque blue box over a black & white page: whatever is underneath
+    // (u) must come out the same grey in every channel, i.e.
+    // pixel = 0.7 * blue + 0.3 * u.
+    const blue = [66, 133, 244];
+    const under = sample.slice(0, 3).map((v, i) => (v - 0.7 * blue[i]) / 0.3);
+    assert.ok(under.every((u) => u > -45 && u < 300), `expected see-through blue, got ${sample}`);
+    assert.ok(Math.max(...under) - Math.min(...under) < 60, `expected see-through blue, got ${sample}`);
 
     // --- Import a second page into the same group ------------------------
     await page.setInputFiles('#file-import', { name: 'photo.jpg', mimeType: 'image/jpeg', buffer: fixtures.jpeg });
@@ -172,6 +225,7 @@ async function main() {
     await page.mouse.down();
     await page.mouse.move(handle.x + handle.width / 2 + 3, handle.y + handle.height / 2 + 3, { steps: 3 });
     await page.mouse.up();
+    await page.click('[data-action="editor-next"]');
     await page.click('[data-action="editor-next"]');
     await page.click('[data-action="editor-next"]');
     await page.waitForSelector('#view-group.active');

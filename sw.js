@@ -1,7 +1,7 @@
 // Offline support. The network is tried first, so a new deploy shows up on
 // the next launch; the cache is only used when the phone is offline. Bump
 // CACHE when the list of files changes.
-const CACHE = 'scanify-v3';
+const CACHE = 'scanify-v4';
 const SHELL = [
   './',
   'index.html',
@@ -12,6 +12,7 @@ const SHELL = [
   'js/imaging.js',
   'js/pdf.js',
   'js/version.js',
+  'js/annotate.js',
   'icons/icon.svg',
   'icons/icon-192.png',
   'icons/icon-512.png',

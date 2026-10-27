@@ -11,6 +11,7 @@ import {
 } from './imaging.js';
 import { buildPdf, PAGE_SIZES } from './pdf.js';
 import { APP_VERSION } from './version.js';
+import { BACKGROUNDS, INKS, SIZES, backgroundCss, defaultInk, drawAnnotations, hitTest, layoutAnnotation } from './annotate.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -29,7 +30,10 @@ const QUALITY = {
   max: { label: 'Maximum', sub: 'Best for printing', maxSide: PAGE_MAX, jpeg: null },
 };
 
-const DEFAULT_SETTINGS = { brightness: 0, contrast: 0, filter: 'enhance', rotation: 0, cleanEdges: true };
+// annotations is only ever replaced, never mutated, so sharing it is safe.
+const DEFAULT_SETTINGS = { brightness: 0, contrast: 0, filter: 'enhance', rotation: 0, cleanEdges: true, annotations: Object.freeze([]) };
+
+const TABS = ['crop', 'adjust', 'text'];
 
 const state = {
   view: 'home',
@@ -583,6 +587,7 @@ async function loadEditorItem() {
       ? { ...DEFAULT_SETTINGS, ...structuredClone(ed.scan.settings) }
       : { ...DEFAULT_SETTINGS, corners: detectCorners(ed.previewSource) || defaultCorners() };
     ed.warpCache = null;
+    ed.selectedText = null;
   } catch (err) {
     console.error(err);
     busy(false);
@@ -613,9 +618,11 @@ function setTab(tab) {
   });
   $$('.editor-panel').forEach((p) => p.classList.toggle('active', p.id === `panel-${tab}`));
   ed.tab = tab;
-  $('#editor-next').textContent = tab === 'crop' ? 'Next' : ed.scan ? 'Save changes' : 'Save';
+  const last = tab === TABS[TABS.length - 1];
+  $('#editor-next').textContent = !last ? 'Next' : ed.scan ? 'Save changes' : 'Save';
   if (tab === 'crop') layoutCrop();
   else schedulePreview();
+  if (tab === 'text') syncTextHint();
 }
 
 // Crop -----------------------------------------------------------------------
@@ -631,7 +638,7 @@ function drawCropCanvas() {
 
 function layoutCrop() {
   const ed = state.editor;
-  if (!ed || ed.tab === 'adjust') return;
+  if (!ed || ed.tab !== 'crop') return;
   const stage = $('#crop-stage');
   const frame = $('#crop-frame');
   const cs = getComputedStyle(stage);
@@ -749,9 +756,9 @@ function schedulePreview() {
   });
 }
 
-function renderPreview() {
+/** The straightened, adjusted page at preview size, cached while unchanged. */
+function adjustedPreview() {
   const ed = state.editor;
-  if (!ed || ed.tab !== 'adjust') return;
   const s = ed.settings;
   // Warping is the expensive part; cache it while only the sliders change.
   const key = JSON.stringify([s.corners, s.cleanEdges]);
@@ -761,19 +768,190 @@ function renderPreview() {
     const size = outputSize(quad, PREVIEW_MAX);
     ed.warpCache = { key, img: warpPerspective(readPixels(src), quad, size.width, size.height, s.cleanEdges ? CLEAN_EDGE_TRIM : 0) };
   }
-  const base = ed.warpCache.img;
-  let img = { width: base.width, height: base.height, data: new Uint8ClampedArray(base.data) };
-  applyAdjustments(img, s);
-  img = rotate90(img, s.rotation);
-  const canvas = pixelsToCanvas(img, $('#preview-canvas'));
+  // Dragging text redraws often, so keep the adjusted page as well.
+  const adjKey = JSON.stringify([key, s.brightness, s.contrast, s.filter, s.rotation]);
+  if (!ed.adjustCache || ed.adjustCache.key !== adjKey || ed.adjustCache.warp !== ed.warpCache) {
+    const base = ed.warpCache.img;
+    let img = { width: base.width, height: base.height, data: new Uint8ClampedArray(base.data) };
+    applyAdjustments(img, s);
+    img = rotate90(img, s.rotation);
+    ed.adjustCache = { key: adjKey, warp: ed.warpCache, canvas: pixelsToCanvas(img) };
+  }
+  return ed.adjustCache.canvas;
+}
+
+function renderPreview() {
+  const ed = state.editor;
+  if (!ed || ed.tab === 'crop') return;
+  const base = adjustedPreview();
+  const canvas = $(ed.tab === 'text' ? '#text-canvas' : '#preview-canvas');
+  canvas.width = base.width;
+  canvas.height = base.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(base, 0, 0);
+  drawAnnotations(ctx, ed.settings.annotations, base.width, base.height, {
+    selectedId: ed.tab === 'text' ? ed.selectedText : null,
+  });
   // Fit the canvas into the stage while keeping its aspect ratio.
   const stage = canvas.parentElement;
   const cs = getComputedStyle(stage);
   const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
   const availH = stage.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
-  const k = Math.min(availW / img.width, availH / img.height);
-  canvas.style.width = `${Math.floor(img.width * k)}px`;
-  canvas.style.height = `${Math.floor(img.height * k)}px`;
+  const k = Math.min(availW / base.width, availH / base.height);
+  canvas.style.width = `${Math.floor(base.width * k)}px`;
+  canvas.style.height = `${Math.floor(base.height * k)}px`;
+}
+
+// Text -----------------------------------------------------------------------
+
+function syncTextHint() {
+  $('#text-hint').textContent = state.editor.settings.annotations.length
+    ? 'Tap text to edit it, drag to move it, or tap the page to add more.'
+    : 'Tap the page to add text there.';
+}
+
+function setAnnotations(list) {
+  state.editor.settings.annotations = list;
+  syncTextHint();
+  schedulePreview();
+}
+
+/**
+ * Opens the text editor sheet for a new annotation (placed at `at`, a
+ * page-relative point) or an existing one.
+ */
+async function textSheet(existing, at = null) {
+  const ed = state.editor;
+  const draft = existing
+    ? { ...existing }
+    : {
+        id: db.newId(),
+        text: '',
+        x: at ? at[0] : 0.08,
+        y: at ? at[1] : 0.45,
+        size: SIZES[pref('textSize')] ? pref('textSize') : 'm',
+        bg: pref('textBg', 'yellow'),
+      };
+  if (!BACKGROUNDS.some((b) => b.key === draft.bg)) draft.bg = 'yellow';
+  if (!draft.ink) draft.ink = defaultInk(draft.bg);
+  // Picking a background also picks a readable text colour, until the user
+  // chooses a text colour themselves.
+  let inkChosen = !!existing;
+
+  const chips = (name, options, current) =>
+    `<div class="seg" role="radiogroup" data-pick="${name}">${Object.entries(options)
+      .map(([k, v]) => `<button type="button" class="chip" role="radio" data-value="${k}" aria-checked="${k === current}">${escapeHtml(v.label)}</button>`)
+      .join('')}</div>`;
+
+  const result = await openSheet(
+    `<h2>${existing ? 'Edit text' : 'Add text'}</h2>
+     <textarea data-text maxlength="300" placeholder="Type your text" aria-label="Text">${escapeHtml(draft.text)}</textarea>
+     <div class="field">Background
+       <div class="swatches" role="radiogroup" data-pick="bg">${BACKGROUNDS.map(
+         (b) => `<button type="button" class="swatch ${b.rgb ? '' : 'none'}" role="radio" data-value="${b.key}" aria-label="${escapeHtml(b.label)}" title="${escapeHtml(b.label)}" aria-checked="${b.key === draft.bg}"><span${b.rgb ? ` style="background:${backgroundCss(b.key)}"` : ''}></span></button>`
+       ).join('')}</div>
+     </div>
+     <div class="field">Text colour ${chips('ink', INKS, draft.ink)}</div>
+     <div class="field">Size ${chips('size', SIZES, draft.size)}</div>
+     <div class="sheet-actions">
+       ${existing ? '<button type="button" class="btn danger" data-sheet-action="delete">Delete</button>' : '<button type="button" class="btn secondary" data-sheet-action="cancel">Cancel</button>'}
+       <button type="button" class="btn primary" data-sheet-action="ok">Done</button>
+     </div>`,
+    (action, sheet) => {
+      if (action === 'ok') return { ...draft, text: sheet.querySelector('[data-text]').value };
+      if (action === 'delete') return 'delete';
+      return null;
+    },
+    (sheet) => {
+      const select = (group, value) =>
+        $$('[data-value]', sheet.querySelector(`[data-pick="${group}"]`)).forEach((b) =>
+          b.setAttribute('aria-checked', String(b.dataset.value === value))
+        );
+      sheet.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-pick] [data-value]');
+        if (!btn) return;
+        const group = btn.closest('[data-pick]').dataset.pick;
+        draft[group] = btn.dataset.value;
+        select(group, btn.dataset.value);
+        if (group === 'ink') inkChosen = true;
+        if (group === 'bg' && !inkChosen) {
+          draft.ink = defaultInk(draft.bg);
+          select('ink', draft.ink);
+        }
+      });
+      // Focusing during the tap lets phones open the keyboard straight away.
+      sheet.querySelector('[data-text]').focus();
+    }
+  );
+
+  if (!result) return;
+  const others = ed.settings.annotations.filter((a) => a.id !== draft.id);
+  if (result === 'delete' || !result.text.trim()) {
+    ed.selectedText = null;
+    setAnnotations(others);
+    return;
+  }
+  setPref('textBg', result.bg);
+  setPref('textSize', result.size);
+  ed.selectedText = result.id;
+  // Keep an edited annotation in its place in the stacking order.
+  const index = ed.settings.annotations.findIndex((a) => a.id === result.id);
+  setAnnotations(index < 0 ? [...others, result] : ed.settings.annotations.map((a) => (a.id === result.id ? result : a)));
+}
+
+function initTextCanvas() {
+  const canvas = $('#text-canvas');
+  const toPage = (e) => {
+    const r = canvas.getBoundingClientRect();
+    return [Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), Math.max(0, Math.min(1, (e.clientY - r.top) / r.height))];
+  };
+  let gesture = null;
+
+  canvas.addEventListener('pointerdown', (e) => {
+    const ed = state.editor;
+    if (!ed) return;
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    const p = toPage(e);
+    const ctx = canvas.getContext('2d');
+    const hit = hitTest(ctx, ed.settings.annotations, canvas.width, canvas.height, p[0] * canvas.width, p[1] * canvas.height);
+    if (hit) {
+      // Start from where the box is actually drawn (it is kept on the page).
+      const box = layoutAnnotation(ctx, hit, canvas.width, canvas.height);
+      gesture = { id: hit.id, start: p, from: [box.x / canvas.width, box.y / canvas.height], moved: false };
+      ed.selectedText = hit.id;
+      schedulePreview();
+    } else {
+      gesture = { id: null, start: p, moved: false };
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (!gesture) return;
+    const p = toPage(e);
+    const dx = p[0] - gesture.start[0], dy = p[1] - gesture.start[1];
+    if (!gesture.moved && Math.hypot(dx, dy) < 0.015) return;
+    gesture.moved = true;
+    if (!gesture.id) return;
+    const x = Math.max(0, Math.min(1, gesture.from[0] + dx));
+    const y = Math.max(0, Math.min(1, gesture.from[1] + dy));
+    setAnnotations(state.editor.settings.annotations.map((a) => (a.id === gesture.id ? { ...a, x, y } : a)));
+  });
+
+  const end = (e) => {
+    const g = gesture;
+    gesture = null;
+    if (!g || g.moved || e.type === 'pointercancel') return;
+    const ed = state.editor;
+    if (g.id) textSheet(ed.settings.annotations.find((a) => a.id === g.id));
+    else {
+      ed.selectedText = null;
+      // Put the new box just above-left of the finger so it stays visible.
+      textSheet(null, [Math.max(0, g.start[0] - 0.03), Math.max(0, g.start[1] - 0.03)]);
+    }
+  };
+  canvas.addEventListener('pointerup', end);
+  canvas.addEventListener('pointercancel', end);
 }
 
 function syncFilterChips() {
@@ -794,6 +972,7 @@ async function saveEditorItem() {
   await nextFrame();
   try {
     const page = pixelsToCanvas(processPage(ed.sourceCanvas, ed.settings, PAGE_MAX));
+    drawAnnotations(page.getContext('2d'), ed.settings.annotations, page.width, page.height);
     const processed = await canvasToBlob(page, 0.92);
     const thumb = await canvasToBlob(scaledCanvas(page, 360), 0.8);
     const scan = {
@@ -1126,7 +1305,12 @@ const actions = {
   capture: capturePhoto,
   'editor-cancel': cancelEditor,
   'editor-retake': editorRetake,
-  'editor-next': () => (state.editor.tab === 'crop' ? setTab('adjust') : saveEditorItem()),
+  'editor-next': () => {
+    const next = TABS[TABS.indexOf(state.editor.tab) + 1];
+    if (next) setTab(next);
+    else saveEditorItem();
+  },
+  'text-add': () => textSheet(null),
   'crop-auto': () => {
     const ed = state.editor;
     const corners = detectCorners(ed.previewSource);
@@ -1191,6 +1375,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 initCropHandles();
+initTextCanvas();
 $('#app-version').textContent = `v${APP_VERSION}`;
 applyTheme(currentTheme());
 renderHome();

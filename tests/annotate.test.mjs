@@ -1,0 +1,61 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { BACKGROUNDS, BG_ALPHA, backgroundCss, defaultInk, hitTest, layoutAnnotation, wrapText } from '../js/annotate.js';
+
+// Every character is half the font size wide.
+function fakeCtx() {
+  return {
+    font: '',
+    measureText(s) {
+      const px = Number(/(\d+)px/.exec(this.font)[1]);
+      return { width: s.length * px * 0.5 };
+    },
+  };
+}
+
+const note = (over = {}) => ({ id: 'a', text: 'PAID', x: 0.1, y: 0.2, size: 'm', bg: 'yellow', ink: 'black', ...over });
+
+test('backgrounds are 30% transparent', () => {
+  assert.equal(BG_ALPHA, 0.7);
+  assert.equal(backgroundCss('yellow'), 'rgba(255, 235, 59, 0.7)');
+  assert.equal(backgroundCss('none'), 'transparent');
+  assert.ok(BACKGROUNDS.length >= 8);
+});
+
+test('picks a readable text colour for each background', () => {
+  assert.equal(defaultInk('yellow'), 'black');
+  assert.equal(defaultInk('white'), 'black');
+  assert.equal(defaultInk('none'), 'black');
+  assert.equal(defaultInk('black'), 'white');
+  assert.equal(defaultInk('purple'), 'white');
+});
+
+test('wraps long text and keeps line breaks', () => {
+  const measure = (s) => s.length * 10;
+  assert.deepEqual(wrapText(measure, 'one two three four', 100), ['one two', 'three four']);
+  assert.deepEqual(wrapText(measure, 'top\n\nbottom', 1000), ['top', '', 'bottom']);
+});
+
+test('scales with the page so preview and print match', () => {
+  const ctx = fakeCtx();
+  const small = layoutAnnotation(ctx, note(), 1000, 1400);
+  const big = layoutAnnotation(ctx, note(), 2000, 2800);
+  assert.equal(big.fontPx, small.fontPx * 2);
+  assert.ok(Math.abs(big.x - small.x * 2) <= 1 && Math.abs(big.y - small.y * 2) <= 1);
+  assert.ok(Math.abs(big.w - small.w * 2) <= 2);
+});
+
+test('keeps the box on the page', () => {
+  const ctx = fakeCtx();
+  const b = layoutAnnotation(ctx, note({ x: 0.99, y: 0.99 }), 1000, 1400);
+  assert.ok(b.x + b.w <= 1000 && b.y + b.h <= 1400);
+  const long = layoutAnnotation(ctx, note({ text: 'word '.repeat(80), x: 0 }), 1000, 1400);
+  assert.ok(long.w <= 1000 && long.lines.length > 1);
+});
+
+test('hit testing finds the topmost box', () => {
+  const ctx = fakeCtx();
+  const anns = [note({ id: 'under' }), note({ id: 'over' })];
+  assert.equal(hitTest(ctx, anns, 1000, 1400, 110, 290).id, 'over');
+  assert.equal(hitTest(ctx, anns, 1000, 1400, 900, 1300), null);
+});

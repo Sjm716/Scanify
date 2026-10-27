@@ -108,7 +108,8 @@
     </header>
     <div class="tabs" role="tablist">
       <button role="tab" class="tab active" data-tab="crop" type="button" aria-selected="true">1 · Edges</button>
-      <button role="tab" class="tab" data-tab="adjust" type="button" aria-selected="false">2 · Print quality</button>
+      <button role="tab" class="tab" data-tab="adjust" type="button" aria-selected="false">2 · Quality</button>
+      <button role="tab" class="tab" data-tab="text" type="button" aria-selected="false">3 · Text</button>
     </div>
 
     <div id="panel-crop" class="editor-panel active">
@@ -156,6 +157,16 @@
           <button class="chip" data-action="rotate-left" type="button" aria-label="Rotate left">⟲ Rotate</button>
           <button class="chip" data-action="rotate-right" type="button" aria-label="Rotate right">⟳ Rotate</button>
           <button class="chip" data-action="adjust-reset" type="button">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="panel-text" class="editor-panel">
+      <div class="preview-stage"><canvas id="text-canvas" class="text-canvas"></canvas></div>
+      <div class="controls">
+        <p class="muted small center" id="text-hint">Tap the page to add text there.</p>
+        <div class="toolbar">
+          <button class="chip" data-action="text-add" type="button">＋ Add text</button>
         </div>
       </div>
     </div>

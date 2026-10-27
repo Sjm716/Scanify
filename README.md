@@ -20,6 +20,12 @@ App), with no server and no accounts. Scans stay on the device.
   and choose a filter: *Original*, *Enhanced* (auto-levels, whiter paper),
   *Grayscale* or *Black & white*, which uses adaptive thresholding for
   crisp text. Rotate in 90° steps. You can re-edit any page later.
+- **Text over the page.** The editor's third step, *Text*, adds notes on top
+  of a scan: tap the page (or *Add text*), type, and pick one of nine
+  colored backgrounds, all 30% transparent so the page shows through, or
+  none. Text color (black/white) follows the background automatically, in
+  three sizes. Drag notes to move them, and tap one to edit or delete it.
+  The text is saved into the page, so it appears in PDF and JPG exports.
 - **Groups.** Related scans are kept together in a group, such as all pages
   of a contract or a month of receipts. You can reorder pages, move a page
   to another group, and rename or delete groups. Each group exports as one
@@ -64,6 +70,7 @@ CSS and ES modules.
 | --- | --- |
 | `js/app.js` | UI: screens, camera, crop handles, editor, groups, export/sharing |
 | `js/imaging.js` | Edge detection, perspective correction, filters (pure functions) |
+| `js/annotate.js` | Text notes: layout, wrapping, see-through backgrounds, hit testing |
 | `js/pdf.js` | Small PDF writer that embeds the JPEG pages directly |
 | `js/db.js` | IndexedDB storage for groups and scans |
 | `sw.js`, `manifest.webmanifest` | Offline cache and installability |
