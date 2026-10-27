@@ -10,6 +10,7 @@ import {
   warpPerspective,
 } from './imaging.js';
 import { buildPdf, PAGE_SIZES } from './pdf.js';
+import { APP_VERSION } from './version.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -1149,6 +1150,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 initCropHandles();
+$('#app-version').textContent = `v${APP_VERSION}`;
 renderHome();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
