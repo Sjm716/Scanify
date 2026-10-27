@@ -16,8 +16,10 @@
   color-scheme: light;
 }
 
+/* Dark theme: chosen in the app (data-theme="dark"), or following the phone
+   when the theme is automatic (no data-theme). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0f1218;
     --surface: #181c25;
     --surface-2: #232937;
@@ -28,6 +30,17 @@
     --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1218;
+  --surface: #181c25;
+  --surface-2: #232937;
+  --text: #eef1f7;
+  --muted: #9aa2b4;
+  --border: #2c3342;
+  --primary: #4f83f5;
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }

@@ -37,6 +37,8 @@ App), with no server and no accounts. Scans stay on the device.
     (choose WhatsApp in the share sheet). On desktop, Scanify opens a
     `wa.me` link with a pre-filled message and downloads the files so you
     can attach them.
+- **Dark mode.** The button next to the version number cycles through
+  Automatic (matches the phone), Dark and Light. The choice is remembered.
 - Works offline once loaded, and can be installed to the home screen.
 
 ## Running it

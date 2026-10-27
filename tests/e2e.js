@@ -110,6 +110,27 @@ async function main() {
     await page.goto(`http://localhost:${PORT}/`);
     await page.waitForSelector('#home-empty:not([hidden])');
     assert.match(await page.textContent('#app-version'), /^v\d+\.\d+\.\d+$/);
+
+    // --- Theme toggle: Automatic -> Dark -> Light -> Automatic ------------
+    const bg = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const lightBg = 'rgb(245, 246, 250)', darkBg = 'rgb(15, 18, 24)';
+    assert.equal(await bg(), lightBg, 'automatic follows the (light) phone setting');
+    await page.click('#theme-toggle');
+    assert.equal(await page.getAttribute('html', 'data-theme'), 'dark');
+    assert.equal(await bg(), darkBg);
+    await page.reload();
+    await page.waitForSelector('#home-empty:not([hidden])');
+    assert.equal(await bg(), darkBg, 'dark choice survives a reload');
+    await shot('01b-home-dark');
+    await page.click('#theme-toggle');
+    assert.equal(await page.getAttribute('html', 'data-theme'), 'light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    assert.equal(await bg(), lightBg, 'light choice overrides a dark phone');
+    await page.click('#theme-toggle');
+    assert.equal(await page.getAttribute('html', 'data-theme'), null);
+    assert.equal(await bg(), darkBg, 'automatic follows the (dark) phone setting');
+    await page.emulateMedia({ colorScheme: 'light' });
+    assert.match(await page.getAttribute('#theme-toggle', 'aria-label'), /Automatic/);
     await shot('01-home-empty');
 
     // --- Scan with the (fake) camera -------------------------------------
