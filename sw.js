@@ -1,5 +1,7 @@
-// Offline support: serve the app shell from cache, refresh it in the background.
-const CACHE = 'scanify-v1';
+// Offline support. The network is tried first, so a new deploy shows up on
+// the next launch; the cache is only used when the phone is offline. Bump
+// CACHE when the list of files changes.
+const CACHE = 'scanify-v2';
 const SHELL = [
   './',
   'index.html',
@@ -18,7 +20,14 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' skips the browser's HTTP cache, which GitHub Pages lets
+  // hold files for 10 minutes, so the shell is never filled with stale files.
+  e.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(SHELL.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (e) => {
@@ -34,14 +43,20 @@ self.addEventListener('fetch', (e) => {
   const { request } = e;
   if (request.method !== 'GET' || new URL(request.url).origin !== location.origin) return;
   e.respondWith(
-    caches.match(request, { ignoreSearch: true }).then((cached) => {
-      const network = fetch(request)
-        .then((res) => {
-          if (res.ok) caches.open(CACHE).then((c) => c.put(request, res.clone()));
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    // 'no-cache' revalidates with the server instead of trusting the HTTP
+    // cache. Fetch by URL: a navigation Request can't be re-issued with options.
+    fetch(request.url, { cache: 'no-cache' })
+      .then((res) => {
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(request, copy));
+        }
+        return res;
+      })
+      .catch(() =>
+        caches
+          .match(request, { ignoreSearch: true })
+          .then((cached) => cached || (request.mode === 'navigate' ? caches.match('index.html') : Response.error()))
+      )
   );
 });
