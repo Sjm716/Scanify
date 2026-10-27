@@ -67,6 +67,10 @@ CSS and ES modules.
 | `sw.js`, `manifest.webmanifest` | Offline cache and installability |
 | `tools/make-logo.cjs` | Generates the logo and icons |
 
+The version shown on the home screen comes from `js/version.js`. Bump it,
+and `"version"` in `package.json`, with each release; a test checks they
+match.
+
 ```sh
 npm test           # unit tests (imaging + PDF), Node 20+
 npm run test:e2e   # full flow in headless Chromium with a fake camera (needs Playwright)
