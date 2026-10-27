@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Scanify</title>
+  <meta name="description" content="Scanify turns photos of documents into clean, square PDFs.">
+  <meta name="theme-color" content="#2563eb">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Scanify">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Home: list of scan groups -->
+  <section id="view-home" class="view active" aria-labelledby="home-title">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icons/icon.svg" alt="" class="brand-logo" width="36" height="36">
+        <h1 id="home-title">Scanify</h1>
+      </div>
+    </header>
+    <main class="content">
+      <div id="group-list" class="group-list"></div>
+      <div id="home-empty" class="empty" hidden>
+        <img src="icons/icon.svg" alt="" width="96" height="96">
+        <h2>No scans yet</h2>
+        <p>Take a picture of a document and Scanify will straighten it, clean up the edges and turn it into a PDF.</p>
+      </div>
+    </main>
+    <div class="fab-row">
+      <button class="btn secondary" data-action="import" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v14H4z M4 15l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+        Import
+      </button>
+      <button class="btn primary big" data-action="scan" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="3.5" fill="currentColor"/></svg>
+        Scan
+      </button>
+    </div>
+  </section>
+
+  <!-- Group: pages in one group -->
+  <section id="view-group" class="view" aria-labelledby="group-title">
+    <header class="topbar">
+      <button class="icon-btn" data-action="home" type="button" aria-label="Back">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <h1 id="group-title" class="grow ellipsis"></h1>
+      <button class="icon-btn" data-action="group-menu" type="button" aria-label="Group options">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
+      </button>
+    </header>
+    <main class="content">
+      <p id="group-meta" class="muted"></p>
+      <div id="page-grid" class="page-grid"></div>
+    </main>
+    <div class="fab-row">
+      <button class="btn secondary" data-action="group-add" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Add page
+      </button>
+      <button class="btn primary big" data-action="share" type="button">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v7h14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Export PDF
+      </button>
+    </div>
+  </section>
+
+  <!-- Camera -->
+  <section id="view-camera" class="view dark" aria-label="Camera">
+    <div class="camera-stage">
+      <video id="camera-video" playsinline muted autoplay></video>
+      <svg id="camera-overlay" class="camera-overlay" preserveAspectRatio="none" aria-hidden="true"><polygon points=""/></svg>
+      <p id="camera-hint" class="camera-hint">Fit the document in the frame</p>
+    </div>
+    <div class="camera-bar">
+      <button class="icon-btn light" data-action="camera-close" type="button" aria-label="Close camera">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <button class="shutter" data-action="capture" type="button" aria-label="Take picture"></button>
+      <button class="icon-btn light" data-action="import" type="button" aria-label="Choose from photos">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M4 15l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Editor: crop + adjust -->
+  <section id="view-editor" class="view" aria-labelledby="editor-title">
+    <header class="topbar">
+      <button class="icon-btn" data-action="editor-cancel" type="button" aria-label="Cancel">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
+      <h1 id="editor-title" class="grow">Edit scan</h1>
+      <span id="editor-queue" class="muted small"></span>
+    </header>
+    <div class="tabs" role="tablist">
+      <button role="tab" class="tab active" data-tab="crop" type="button" aria-selected="true">1 · Edges</button>
+      <button role="tab" class="tab" data-tab="adjust" type="button" aria-selected="false">2 · Print quality</button>
+    </div>
+
+    <div id="panel-crop" class="editor-panel active">
+      <div id="crop-stage" class="crop-stage">
+        <div id="crop-frame" class="crop-frame">
+          <canvas id="crop-canvas"></canvas>
+          <svg id="crop-svg" class="crop-svg" preserveAspectRatio="none">
+            <path class="crop-shade" fill-rule="evenodd" d=""/>
+            <polygon class="crop-poly" points=""/>
+          </svg>
+          <button class="handle" data-corner="0" type="button" aria-label="Top-left corner"></button>
+          <button class="handle" data-corner="1" type="button" aria-label="Top-right corner"></button>
+          <button class="handle" data-corner="2" type="button" aria-label="Bottom-right corner"></button>
+          <button class="handle" data-corner="3" type="button" aria-label="Bottom-left corner"></button>
+        </div>
+        <canvas id="loupe" class="loupe" width="120" height="120" hidden></canvas>
+      </div>
+      <div class="toolbar">
+        <button class="chip" data-action="crop-auto" type="button">Auto-detect edges</button>
+        <button class="chip" data-action="crop-full" type="button">Whole photo</button>
+        <label class="chip toggle"><input type="checkbox" id="clean-edges" checked> Clean edges</label>
+      </div>
+    </div>
+
+    <div id="panel-adjust" class="editor-panel">
+      <div class="preview-stage"><canvas id="preview-canvas"></canvas></div>
+      <div class="controls">
+        <div class="filters" role="radiogroup" aria-label="Filter">
+          <button class="chip" role="radio" data-filter="color" type="button">Original</button>
+          <button class="chip" role="radio" data-filter="enhance" type="button">Enhanced</button>
+          <button class="chip" role="radio" data-filter="gray" type="button">Grayscale</button>
+          <button class="chip" role="radio" data-filter="bw" type="button">Black &amp; white</button>
+        </div>
+        <label class="slider">
+          <span>Darker</span>
+          <input type="range" id="brightness" min="-100" max="100" step="1" value="0" aria-label="Lightness">
+          <span>Lighter</span>
+        </label>
+        <label class="slider">
+          <span>Soft</span>
+          <input type="range" id="contrast" min="-100" max="100" step="1" value="0" aria-label="Contrast">
+          <span>Crisp</span>
+        </label>
+        <div class="toolbar">
+          <button class="chip" data-action="rotate-left" type="button" aria-label="Rotate left">⟲ Rotate</button>
+          <button class="chip" data-action="rotate-right" type="button" aria-label="Rotate right">⟳ Rotate</button>
+          <button class="chip" data-action="adjust-reset" type="button">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="editor-footer">
+      <button class="btn secondary" data-action="editor-retake" type="button">Retake</button>
+      <button class="btn primary" data-action="editor-next" type="button" id="editor-next">Next</button>
+    </div>
+  </section>
+
+  <!-- Bottom sheet used for menus and dialogs -->
+  <div id="sheet-backdrop" class="sheet-backdrop" hidden></div>
+  <div id="sheet" class="sheet" role="dialog" aria-modal="true" hidden></div>
+
+  <div id="busy" class="busy" hidden><div class="spinner"></div><p id="busy-text">Working…</p></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <input type="file" id="file-import" accept="image/*" multiple hidden>
+  <input type="file" id="file-capture" accept="image/*" capture="environment" hidden>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
