@@ -823,7 +823,7 @@ async function editorRetake() {
 }
 
 // ---------------------------------------------------------------------------
-// Export: PDF, save, email, WhatsApp
+// Export: PDF or JPG, save, email, WhatsApp
 // ---------------------------------------------------------------------------
 
 async function reencode(blob, q) {
@@ -834,6 +834,11 @@ async function reencode(blob, q) {
   return canvasToBlob(c, q.jpeg);
 }
 
+const FORMATS = {
+  pdf: { label: 'PDF' },
+  jpg: { label: 'JPG images' },
+};
+
 async function makePdf(group, { pageSize, quality }) {
   const scans = await db.getScans(group);
   const q = QUALITY[quality] || QUALITY.high;
@@ -843,28 +848,57 @@ async function makePdf(group, { pageSize, quality }) {
   return new File([bytes], `${safeFileName(group.name)}.pdf`, { type: 'application/pdf' });
 }
 
-function downloadFile(file) {
-  const url = URL.createObjectURL(file);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = file.name;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+/** One JPG per page; a single page is named after the group alone. */
+async function makeJpgs(group, { quality }) {
+  const scans = await db.getScans(group);
+  const q = QUALITY[quality] || QUALITY.high;
+  const base = safeFileName(group.name);
+  const files = [];
+  for (const [i, s] of scans.entries()) {
+    const name = scans.length === 1 ? `${base}.jpg` : `${base} - page ${i + 1}.jpg`;
+    files.push(new File([await reencode(s.processed, q)], name, { type: 'image/jpeg' }));
+  }
+  return files;
 }
 
-function canShareFile(file) {
+/** Builds the export as a list of files: one PDF, or one JPG per page. */
+async function makeExport(group, opts) {
+  return opts.format === 'jpg' ? makeJpgs(group, opts) : [await makePdf(group, opts)];
+}
+
+/** Human wording for what is being sent, e.g. "PDF", "image", "3 images". */
+function describeFiles(files) {
+  if (files[0].type === 'application/pdf') return 'PDF';
+  return files.length === 1 ? 'image' : `${files.length} images`;
+}
+
+function downloadFiles(files) {
+  // Space the clicks out a little: browsers drop rapid back-to-back downloads.
+  files.forEach((file, i) =>
+    setTimeout(() => {
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.name;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }, i * 300)
+  );
+}
+
+function canShareFiles(files) {
   try {
-    return !!navigator.canShare?.({ files: [file] });
+    return !!navigator.canShare?.({ files });
   } catch {
     return false;
   }
 }
 
-async function shareFile(file, text) {
+async function shareFiles(files, text) {
   try {
-    await navigator.share({ files: [file], title: file.name, text });
+    await navigator.share({ files, title: files.length === 1 ? files[0].name : undefined, text });
     return true;
   } catch (err) {
     if (err.name === 'AbortError') return true; // user closed the share sheet
@@ -873,60 +907,71 @@ async function shareFile(file, text) {
   }
 }
 
-async function saveToDevice(file) {
-  if (window.showSaveFilePicker && !isTouchDevice()) {
+async function saveToDevice(files) {
+  const what = describeFiles(files);
+  if (window.showSaveFilePicker && !isTouchDevice() && files.length === 1) {
+    const [file] = files;
+    const type =
+      file.type === 'application/pdf'
+        ? { description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }
+        : { description: 'JPG image', accept: { 'image/jpeg': ['.jpg', '.jpeg'] } };
     try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: file.name,
-        types: [{ description: 'PDF document', accept: { 'application/pdf': ['.pdf'] } }],
-      });
+      const handle = await window.showSaveFilePicker({ suggestedName: file.name, types: [type] });
       const w = await handle.createWritable();
       await w.write(file);
       await w.close();
-      toast('PDF saved');
+      toast(`${what} saved`);
       return;
     } catch (err) {
       if (err.name === 'AbortError') return;
     }
   }
-  // On phones the share sheet offers "Save to Files" / "Save to device".
-  if (isTouchDevice() && canShareFile(file) && (await shareFile(file))) return;
-  downloadFile(file);
-  toast('PDF downloaded');
+  // On phones the share sheet offers "Save to Files" / "Save image".
+  if (isTouchDevice() && canShareFiles(files) && (await shareFiles(files))) return;
+  downloadFiles(files);
+  toast(`${what} downloaded`);
 }
 
-async function sendEmail(file, group) {
-  const subject = `${group.name} (PDF)`;
-  const body = `Hi,\n\nPlease find “${file.name}” attached (${group.scanIds.length} page${group.scanIds.length === 1 ? '' : 's'}), scanned with Scanify.\n`;
-  if (canShareFile(file) && (await shareFile(file, body))) return;
-  // mailto: links can't carry attachments, so download the PDF for the user
-  // to attach and open a pre-filled email.
-  downloadFile(file);
-  toast('PDF downloaded — attach it to the email that just opened', 5000);
-  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + '\n(Attach the downloaded PDF.)')}`;
+async function sendEmail(files, group) {
+  const what = describeFiles(files);
+  const subject = `${group.name} (${files[0].type === 'application/pdf' ? 'PDF' : 'JPG'})`;
+  const names = files.map((f) => `“${f.name}”`).join(', ');
+  const body = `Hi,\n\nPlease find ${names} attached (${group.scanIds.length} page${group.scanIds.length === 1 ? '' : 's'}), scanned with Scanify.\n`;
+  if (canShareFiles(files) && (await shareFiles(files, body))) return;
+  // mailto: links can't carry attachments, so download the files for the
+  // user to attach and open a pre-filled email.
+  downloadFiles(files);
+  toast(`${what} downloaded — attach to the email that just opened`, 5000);
+  window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body + '\n(Attach the downloaded files.)')}`;
 }
 
-async function sendWhatsApp(file, group) {
-  const text = `${group.name} — ${group.scanIds.length} page PDF from Scanify`;
-  // On phones, the share sheet sends the actual PDF file; pick WhatsApp in it.
-  if (isTouchDevice() && canShareFile(file) && (await shareFile(file, text))) return;
+async function sendWhatsApp(files, group) {
+  const what = describeFiles(files);
+  const text = `${group.name} — ${what} from Scanify`;
+  // On phones, the share sheet sends the actual files; pick WhatsApp in it.
+  if (isTouchDevice() && canShareFiles(files) && (await shareFiles(files, text))) return;
   // Elsewhere, open WhatsApp (app or web) with a prefilled message and
-  // download the PDF so it can be attached to the chat.
-  downloadFile(file);
-  toast('PDF downloaded — attach it in the WhatsApp chat', 5000);
+  // download the files so they can be attached to the chat.
+  downloadFiles(files);
+  toast(`${what} downloaded — attach in the WhatsApp chat`, 5000);
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
 
 async function exportSheet() {
   const group = await db.getGroup(state.groupId);
   if (!group?.scanIds.length) return;
-  const opts = { pageSize: pref('pageSize', 'a4'), quality: pref('quality', 'high') };
-  let pdfPromise = null;
-  const rebuild = () => {
-    pdfPromise = makePdf(group, opts);
-    pdfPromise.catch(() => {});
+  const pages = group.scanIds.length;
+  const opts = {
+    format: pref('format', 'pdf'),
+    pageSize: pref('pageSize', 'a4'),
+    quality: pref('quality', 'high'),
   };
-  // Build the PDF up front so share buttons can call navigator.share while
+  let exportPromise = null;
+  const rebuild = () => {
+    exportPromise = makeExport(group, opts);
+    exportPromise.catch(() => {});
+  };
+  // Build the files up front so share buttons can call navigator.share while
   // the tap still counts as a user gesture.
   rebuild();
 
@@ -935,35 +980,54 @@ async function exportSheet() {
       .map(([k, v]) => `<button type="button" class="chip" role="radio" data-value="${k}" aria-checked="${k === current}">${escapeHtml(v.label)}</button>`)
       .join('')}</div>`;
 
+  // Wording that follows the chosen format.
+  const summary = () =>
+    opts.format === 'jpg'
+      ? `${pages} page${pages === 1 ? '' : 's'} as ${pages === 1 ? 'a JPG image' : `${pages} JPG images`}`
+      : `${pages} page${pages === 1 ? '' : 's'} in one PDF`;
+  const noun = () => (opts.format === 'jpg' ? (pages === 1 ? 'image' : 'images') : 'PDF');
+  const syncLabels = (sheet) => {
+    sheet.querySelector('[data-summary]').textContent = summary();
+    sheet.querySelector('[data-page-size]').hidden = opts.format === 'jpg';
+    sheet.querySelector('[data-sub="save"]').textContent = `Download the ${noun()}`;
+    sheet.querySelector('[data-sub="email"]').textContent = `Send the ${noun()} as ${pages === 1 || opts.format === 'pdf' ? 'an attachment' : 'attachments'}`;
+    sheet.querySelector('[data-sub="whatsapp"]').textContent = `Send the ${noun()} in a chat`;
+  };
+
   await openSheet(
     `<h2>Export “${escapeHtml(group.name)}”</h2>
-     <p class="muted small">${group.scanIds.length} page${group.scanIds.length === 1 ? '' : 's'} in one PDF</p>
-     <div class="field">Page size ${seg('pageSize', PAGE_SIZES, opts.pageSize)}</div>
+     <p class="muted small" data-summary></p>
+     <div class="field">Format ${seg('format', FORMATS, opts.format)}</div>
+     <div class="field" data-page-size>Page size ${seg('pageSize', PAGE_SIZES, opts.pageSize)}</div>
      <div class="field">Quality ${seg('quality', QUALITY, opts.quality)}</div>
      <div class="menu">
-       ${menuItem('save', 'download', 'Save to device', 'Download the PDF')}
-       ${menuItem('email', 'mail', 'Email', 'Send the PDF as an attachment')}
-       ${menuItem('whatsapp', 'whatsapp', 'WhatsApp', 'Send the PDF in a chat')}
+       ${menuItem('save', 'download', 'Save to device', '…')}
+       ${menuItem('email', 'mail', 'Email', '…')}
+       ${menuItem('whatsapp', 'whatsapp', 'WhatsApp', '…')}
        ${navigator.share ? menuItem('share', 'share', 'More sharing options') : ''}
      </div>`,
-    async (action, sheet) => {
-      let file;
+    async (action) => {
+      let files;
       try {
-        file = await pdfPromise;
+        files = await exportPromise;
       } catch (err) {
         console.error(err);
-        toast('Could not create the PDF');
+        toast(`Could not create the ${noun()}`);
         return null;
       }
-      if (action === 'save') await saveToDevice(file);
-      else if (action === 'email') await sendEmail(file, group);
-      else if (action === 'whatsapp') await sendWhatsApp(file, group);
+      if (action === 'save') await saveToDevice(files);
+      else if (action === 'email') await sendEmail(files, group);
+      else if (action === 'whatsapp') await sendWhatsApp(files, group);
       else if (action === 'share') {
-        if (!(canShareFile(file) && (await shareFile(file)))) downloadFile(file);
+        if (!(canShareFiles(files) && (await shareFiles(files)))) downloadFiles(files);
       } else return undefined;
       return action;
     },
     (sheet) => {
+      for (const a of ['save', 'email', 'whatsapp']) {
+        sheet.querySelector(`[data-sheet-action="${a}"] .sub`).dataset.sub = a;
+      }
+      syncLabels(sheet);
       sheet.addEventListener('click', (e) => {
         const chip = e.target.closest('[data-seg] .chip');
         if (!chip) return;
@@ -971,6 +1035,7 @@ async function exportSheet() {
         opts[name] = chip.dataset.value;
         setPref(name, chip.dataset.value);
         $$('.chip', chip.parentElement).forEach((c) => c.setAttribute('aria-checked', String(c === chip)));
+        syncLabels(sheet);
         rebuild();
       });
     }

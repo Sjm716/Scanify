@@ -24,17 +24,19 @@ App), with no server and no accounts. Scans stay on the device.
   of a contract or a month of receipts. You can reorder pages, move a page
   to another group, and rename or delete groups. Each group exports as one
   multi-page PDF.
-- **Export as PDF.** Choose A4, US Letter or fit-to-image pages, and
-  Standard, High or Maximum quality. Then:
+- **Export as PDF or JPG.** A PDF holds the whole group, on A4, US Letter
+  or fit-to-image pages. JPG gives one image per page (named
+  `Group - page 1.jpg`, and so on). Choose Standard, High or Maximum
+  quality for either. Then:
   - **Save to device.** Desktop browsers use a save dialog or a download.
     Phones open the share sheet, which includes *Save to Files*.
-  - **Email.** Shares the PDF as an attachment through the device's mail
-    app. Where file sharing isn't supported, Scanify downloads the PDF and
-    opens a pre-filled email.
-  - **WhatsApp.** On phones, the PDF file is shared straight to a chat
+  - **Email.** Shares the PDF or images as attachments through the
+    device's mail app. Where file sharing isn't supported, Scanify
+    downloads the files and opens a pre-filled email.
+  - **WhatsApp.** On phones, the files are shared straight to a chat
     (choose WhatsApp in the share sheet). On desktop, Scanify opens a
-    `wa.me` link with a pre-filled message and downloads the PDF so you
-    can attach it.
+    `wa.me` link with a pre-filled message and downloads the files so you
+    can attach them.
 - Works offline once loaded, and can be installed to the home screen.
 
 ## Running it
