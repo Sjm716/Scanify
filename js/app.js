@@ -1152,7 +1152,25 @@ initCropHandles();
 renderHome();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').catch((err) => console.warn('Service worker not registered', err));
+  // When an update takes over from an older version, reload once so the new
+  // files are used straight away — unless the user is in the middle of a scan.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading || state.view === 'camera' || state.view === 'editor') return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker
+    .register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      // Installed apps are often resumed rather than relaunched, so also look
+      // for updates whenever Scanify comes back to the foreground.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch((err) => console.warn('Service worker not registered', err));
 }
 
 // Exposed for automated tests.
