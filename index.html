@@ -12,6 +12,13 @@
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <script>
+    // Apply a saved theme before the page paints, so it never flashes light.
+    try {
+      var theme = localStorage.getItem('scanify.theme');
+      if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+    } catch (e) {}
+  </script>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -23,6 +30,7 @@
         <h1 id="home-title">Scanify</h1>
       </div>
       <span id="app-version" class="app-version"></span>
+      <button class="icon-btn" id="theme-toggle" data-action="theme" type="button"></button>
     </header>
     <main class="content">
       <div id="group-list" class="group-list"></div>

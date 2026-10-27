@@ -94,6 +94,46 @@ function setPref(key, value) {
   }
 }
 
+// Theme ----------------------------------------------------------------------
+
+// Tapping the theme button cycles through these.
+const THEMES = {
+  auto: {
+    label: 'Automatic (matches your phone)',
+    icon: '<circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 4a8 8 0 0 1 0 16z" style="fill: currentColor"/>',
+  },
+  dark: {
+    label: 'Dark',
+    icon: '<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
+  },
+  light: {
+    label: 'Light',
+    icon: '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  },
+};
+
+function applyTheme(theme) {
+  if (theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+  const btn = $('#theme-toggle');
+  btn.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${THEMES[theme].icon}</svg>`;
+  btn.setAttribute('aria-label', `Theme: ${THEMES[theme].label}`);
+  btn.title = `Theme: ${THEMES[theme].label}`;
+}
+
+function currentTheme() {
+  const t = pref('theme', 'auto');
+  return THEMES[t] ? t : 'auto';
+}
+
+function cycleTheme() {
+  const order = Object.keys(THEMES);
+  const next = order[(order.indexOf(currentTheme()) + 1) % order.length];
+  setPref('theme', next);
+  applyTheme(next);
+  toast(`Theme: ${THEMES[next].label}`);
+}
+
 const ICONS = {
   download: '<path d="M12 4v11M7 10l5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   mail: '<path d="M3 6h18v12H3z M3 7l9 6 9-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
@@ -1081,6 +1121,7 @@ const actions = {
     else if (a === 'import') $('#file-import').click();
   },
   share: exportSheet,
+  theme: cycleTheme,
   'camera-close': () => stopCamera(true),
   capture: capturePhoto,
   'editor-cancel': cancelEditor,
@@ -1151,6 +1192,7 @@ document.addEventListener('keydown', (e) => {
 
 initCropHandles();
 $('#app-version').textContent = `v${APP_VERSION}`;
+applyTheme(currentTheme());
 renderHome();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
