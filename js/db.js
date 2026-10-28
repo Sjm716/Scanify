@@ -89,6 +89,15 @@ export async function deleteGroup(id) {
   await done(tx);
 }
 
+/** Puts back a group and its scans exactly as they were (used for Undo). */
+export async function restoreGroup(group, scans) {
+  const db = await open();
+  const tx = db.transaction(['groups', 'scans'], 'readwrite');
+  tx.objectStore('groups').put(group);
+  scans.forEach((s) => tx.objectStore('scans').put(s));
+  await done(tx);
+}
+
 export async function getScan(id) {
   const db = await open();
   return request(db.transaction('scans').objectStore('scans').get(id));
