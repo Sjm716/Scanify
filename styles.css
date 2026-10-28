@@ -159,6 +159,13 @@ h1 { font-size: 1.2rem; font-weight: 700; }
 .empty { text-align: center; max-width: 340px; margin: 12vh auto 0; color: var(--muted); }
 .empty img { border-radius: 22px; box-shadow: var(--shadow); }
 .empty h2 { color: var(--text); margin: 18px 0 8px; }
+.empty strong { color: var(--text); font-weight: 650; }
+.empty-fuel {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left; margin-top: 18px;
+  padding: 12px 14px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--border);
+}
+.empty-fuel .gas-badge { width: 22px; height: 22px; margin: 1px 0 0; flex: none; }
+.empty-fuel .gas-badge svg { width: 22px; height: 22px; }
 
 /* Group */
 #group-meta { margin: 0 0 12px; }

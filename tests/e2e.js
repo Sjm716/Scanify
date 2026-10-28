@@ -109,6 +109,7 @@ async function main() {
   try {
     await page.goto(`http://localhost:${PORT}/`);
     await page.waitForSelector('#home-empty:not([hidden])');
+    assert.match(await page.textContent('#home-empty'), /PDF or JPG.*Fuel log/s);
     assert.match(await page.textContent('#app-version'), /^v\d+\.\d+\.\d+$/);
 
     // --- Theme toggle: Automatic -> Dark -> Light -> Automatic ------------
