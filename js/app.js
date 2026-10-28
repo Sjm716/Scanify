@@ -47,9 +47,21 @@ const state = {
 // ---------------------------------------------------------------------------
 
 let toastTimer;
-function toast(msg, ms = 2800) {
+/** Shows a short message; `action` ({ label, run }) adds a button such as Undo. */
+function toast(msg, ms = 2800, action = null) {
   const el = $('#toast');
   el.textContent = msg;
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-action';
+    btn.textContent = action.label;
+    btn.onclick = () => {
+      el.hidden = true;
+      action.run();
+    };
+    el.append(btn);
+  }
   el.hidden = false;
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (el.hidden = true), ms);
@@ -260,6 +272,7 @@ window.addEventListener('popstate', () => {
 });
 
 async function goHome() {
+  hideDeletePop();
   state.groupId = null;
   show('home');
   await renderHome();
@@ -308,9 +321,108 @@ async function renderHome() {
   list.innerHTML = cards.join('');
 }
 
+// A long press ends with a click; this stops that click opening the group.
+let suppressCardClick = false;
+
 $('#group-list').addEventListener('click', (e) => {
   const card = e.target.closest('[data-group]');
-  if (card) openGroup(card.dataset.group);
+  if (!card) return;
+  if (suppressCardClick) {
+    suppressCardClick = false;
+    return;
+  }
+  openGroup(card.dataset.group);
+});
+
+// Press and hold a card (or right-click it, or press Delete on it) to show
+// a garbage can that deletes it.
+const LONG_PRESS_MS = 500;
+let press = null;
+
+function cancelPress() {
+  if (press) clearTimeout(press.timer);
+  press = null;
+}
+
+$('#group-list').addEventListener('pointerdown', (e) => {
+  const card = e.target.closest('[data-group]');
+  if (!card || e.button > 0) return;
+  cancelPress();
+  press = {
+    x: e.clientX,
+    y: e.clientY,
+    timer: setTimeout(() => {
+      press = null;
+      suppressCardClick = true;
+      navigator.vibrate?.(15);
+      showDeletePop(card);
+    }, LONG_PRESS_MS),
+  };
+});
+$('#group-list').addEventListener('pointermove', (e) => {
+  // Scrolling the list is not a long press.
+  if (press && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 10) cancelPress();
+});
+for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+  $('#group-list').addEventListener(type, cancelPress);
+}
+$('#group-list').addEventListener('contextmenu', (e) => {
+  const card = e.target.closest('[data-group]');
+  if (!card) return;
+  // Phones also fire this on a long press; the timer handles those.
+  e.preventDefault();
+  if (!suppressCardClick && !press) showDeletePop(card);
+});
+$('#group-list').addEventListener('keydown', (e) => {
+  const card = e.target.closest('[data-group]');
+  if (card && (e.key === 'Delete' || e.key === 'Backspace')) {
+    e.preventDefault();
+    showDeletePop(card);
+  }
+});
+
+function showDeletePop(card) {
+  const pop = $('#card-pop');
+  const r = card.getBoundingClientRect();
+  pop.dataset.group = card.dataset.group;
+  pop.style.top = `${r.top + r.height / 2}px`;
+  pop.style.left = `${Math.min(r.right - 44, window.innerWidth - 60)}px`;
+  card.classList.add('pressed');
+  pop.hidden = false;
+  $('#pop-backdrop').hidden = false;
+  pop.querySelector('button').focus();
+}
+
+function hideDeletePop() {
+  $('#card-pop').hidden = true;
+  $('#pop-backdrop').hidden = true;
+  $$('.group-card.pressed').forEach((c) => c.classList.remove('pressed'));
+  // Phones don't always send the click that ends a long press, so reset
+  // here too; after this, taps open groups again.
+  setTimeout(() => (suppressCardClick = false), 0);
+}
+
+async function deleteFromHome() {
+  const id = $('#card-pop').dataset.group;
+  hideDeletePop();
+  const group = await db.getGroup(id);
+  if (!group) return;
+  // Keep a copy so the delete can be undone.
+  const scans = await db.getScans(group);
+  await db.deleteGroup(id);
+  await renderHome();
+  toast(`Deleted “${group.name}”`, 6000, {
+    label: 'Undo',
+    run: async () => {
+      await db.restoreGroup(group, scans);
+      await renderHome();
+    },
+  });
+}
+
+$('#pop-backdrop').addEventListener('pointerdown', (e) => {
+  e.preventDefault();
+  hideDeletePop();
 });
 
 // ---------------------------------------------------------------------------
@@ -1547,6 +1659,7 @@ const actions = {
   },
   share: exportAction,
   menu: settingsMenu,
+  'pop-delete': deleteFromHome,
   gas: () => {
     state.groupId = null;
     openGas();
@@ -1624,6 +1737,7 @@ window.addEventListener('resize', () => {
 });
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && !$('#sheet').hidden) closeSheet(null);
+  if (e.key === 'Escape' && !$('#card-pop').hidden) hideDeletePop();
 });
 
 initCropHandles();

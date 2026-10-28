@@ -339,6 +339,47 @@ async function main() {
     assert.match(await page.textContent('.group-card:has(.gas-badge)'), /Gas .*3 photos/s);
     await shot('12-home-gas');
 
+    // --- Press and hold a card on the home screen to delete it -----------
+    const longPress = async (selector) => {
+      const box = await page.locator(selector).boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.down();
+      await page.waitForTimeout(700);
+      await page.mouse.up();
+    };
+    const cards = () => page.locator('.group-card').count();
+    assert.equal(await cards(), 2);
+    await longPress('.group-card:has(.gas-badge)');
+    await page.waitForSelector('#card-pop:not([hidden])');
+    assert.ok(await page.locator('#view-home').isVisible(), 'a long press does not open the group');
+    assert.equal(await page.locator('.group-card.pressed').count(), 1);
+    await shot('13-hold-to-delete');
+    // Tapping elsewhere dismisses it, and a normal tap opens groups again.
+    await page.mouse.click(5, 300);
+    assert.ok(await page.locator('#card-pop').isHidden());
+    await page.click('.group-card:has(.gas-badge)');
+    await page.waitForSelector('#view-group.active');
+    await page.click('[data-action="home"]');
+    await page.waitForSelector('#view-home.active .group-card');
+
+    // Delete, then Undo brings it back.
+    await longPress('.group-card:not(:has(.gas-badge))');
+    await page.click('#card-pop .pop-trash');
+    await page.waitForFunction(() => document.querySelectorAll('.group-card').length === 1);
+    assert.match(await page.textContent('#toast'), /Deleted “Invoices”/);
+    await page.click('#toast .toast-action');
+    await page.waitForFunction(() => document.querySelectorAll('.group-card').length === 2);
+    assert.match(await page.textContent('#group-list'), /Invoices.*2 pages/s);
+
+    // Delete for real; it stays deleted after reopening the app.
+    await longPress('.group-card:has(.gas-badge)');
+    await page.click('#card-pop .pop-trash');
+    await page.waitForFunction(() => document.querySelectorAll('.group-card').length === 1);
+    await page.reload();
+    await page.waitForSelector('.group-card');
+    assert.equal(await cards(), 1);
+    assert.match(await page.textContent('.group-card'), /Invoices/);
+
     assert.deepEqual(errors, []);
     console.log('E2E passed');
   } finally {
