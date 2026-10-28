@@ -288,7 +288,8 @@ async function main() {
     await page.keyboard.press('Escape');
     await page.click('.group-card');
     await page.waitForSelector('#view-group.active');
-    assert.equal((await page.textContent('#export-label')).trim(), 'Save JPG');
+    // The label is set once the group has loaded.
+    await page.waitForFunction(() => document.querySelector('#export-label').textContent.trim() === 'Save JPG', null, { timeout: 5000 });
     let dl = collectDownloads();
     await page.click('[data-action="share"]');
     await page.waitForFunction(() => !document.querySelector('#toast').hidden);
@@ -327,6 +328,36 @@ async function main() {
       assert.deepEqual([...readFileSync(path).subarray(0, 3)], [0xff, 0xd8, 0xff], 'a JPEG file');
     }
     assert.match(await page.textContent('#group-meta'), /^3 photos/);
+    // Every fuel photo carries the red pump in its top-right corner.
+    const marks = await page.evaluate(async () => {
+      const { fuelBadgeBox } = await import('./js/watermark.js');
+      const { db, state } = window.scanify;
+      const group = await db.getGroup(state.groupId);
+      const out = [];
+      for (const scan of await db.getScans(group)) {
+        const bmp = await createImageBitmap(scan.processed);
+        const c = new OffscreenCanvas(bmp.width, bmp.height);
+        const ctx = c.getContext('2d');
+        ctx.drawImage(bmp, 0, 0);
+        const { x, y, size } = fuelBadgeBox(bmp.width, bmp.height);
+        const pad = size * 0.14, unit = (size - pad * 2) / 24;
+        const at = (ux, uy) => [...ctx.getImageData(Math.round(x + pad + ux * unit), Math.round(y + pad + uy * unit), 1, 1).data];
+        out.push({
+          pump: at(6, 16), // solid part of the pump body
+          tile: [...ctx.getImageData(Math.round(x + size * 0.06), Math.round(y + size * 0.5), 1, 1).data],
+          photo: [...ctx.getImageData(Math.round(bmp.width / 2), Math.round(bmp.height / 2), 1, 1).data],
+        });
+      }
+      return out;
+    });
+    assert.equal(marks.length, 3);
+    for (const m of marks) {
+      const [r, g, b] = m.pump;
+      assert.ok(r > 180 && g < 110 && b < 110, `expected red pump, got ${m.pump}`);
+      assert.ok(m.tile.slice(0, 3).every((v) => v > 200), `expected white tile, got ${m.tile}`);
+      const [pr, pg, pb] = m.photo;
+      assert.ok(!(pr > 180 && pg < 110 && pb < 110), 'the rest of the photo is untouched');
+    }
     assert.equal((await page.textContent('#export-label')).trim(), 'Save photos');
     assert.equal((await page.textContent('#add-label')).trim(), 'Add photos');
     await shot('11-gas-group');
@@ -342,7 +373,12 @@ async function main() {
 
     // --- Press and hold a card on the home screen to delete it -----------
     const longPress = async (selector) => {
-      const box = await page.locator(selector).boundingBox();
+      // The home list re-renders after navigating; wait for the card to settle.
+      let box = null;
+      for (let i = 0; i < 20 && !box; i++) {
+        box = await page.locator(selector).boundingBox();
+        if (!box) await page.waitForTimeout(100);
+      }
       await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
       await page.mouse.down();
       await page.waitForTimeout(700);

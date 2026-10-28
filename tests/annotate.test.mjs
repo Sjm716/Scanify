@@ -59,3 +59,13 @@ test('hit testing finds the topmost box', () => {
   assert.equal(hitTest(ctx, anns, 1000, 1400, 110, 290).id, 'over');
   assert.equal(hitTest(ctx, anns, 1000, 1400, 900, 1300), null);
 });
+
+test('fuel badge sits in the top-right corner at a size set by the short side', async () => {
+  const { fuelBadgeBox } = await import('../js/watermark.js');
+  const land = fuelBadgeBox(4000, 3000);
+  const port = fuelBadgeBox(3000, 4000);
+  assert.equal(land.size, port.size); // same size whichever way the phone is held
+  assert.equal(land.size, 270);
+  assert.ok(land.x + land.size < 4000 && land.y > 0 && land.y < 100);
+  assert.ok(fuelBadgeBox(100, 80).size >= 24); // never too small to see
+});
