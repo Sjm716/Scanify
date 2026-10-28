@@ -50,8 +50,10 @@ App), with no server and no accounts. Scans stay on the device.
   straight to the device. On a phone the share sheet opens with them
   attached, so one tap on *Save Images* puts them in Photos. Each session
   is kept together as its own group, marked with a red pump. Each photo
-  also gets a small red pump stamped in its top-right corner, so fuel
-  photos stand out in the phone's photo album (switch it off in the menu).
+  also gets a small red pump stamped on its right side, a third of the way
+  down, placed so it shows in the square thumbnails of Google Photos and
+  iPhone Photos, so fuel photos stand out in the album (switch it off in
+  the menu).
 - **Quick delete.** Press and hold a group on the home screen (or
   right-click it on a computer) and a red garbage can pops up; tap it to
   delete the group with all its pages or photos. An *Undo* button shows for a

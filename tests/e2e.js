@@ -256,8 +256,10 @@ async function main() {
     const jpgs = [];
     page.on('download', (d) => jpgs.push(d));
     await page.click('[data-sheet-action="save"]');
-    await page.waitForFunction(() => !document.querySelector('#toast').hidden);
-    await page.waitForTimeout(1000);
+    // Wait for the downloads themselves; an earlier "PDF downloaded" message
+    // may still be on screen, so it can't be used as the signal.
+    for (let i = 0; i < 100 && jpgs.length < 2; i++) await page.waitForTimeout(100);
+    await page.waitForTimeout(300); // and make sure no extra file follows
     assert.deepEqual(jpgs.map((d) => d.suggestedFilename()).sort(), ['Invoices - page 1.jpg', 'Invoices - page 2.jpg']);
     for (const d of jpgs) {
       const path = join(tmp, d.suggestedFilename());
@@ -292,8 +294,8 @@ async function main() {
     await page.waitForFunction(() => document.querySelector('#export-label').textContent.trim() === 'Save JPG', null, { timeout: 5000 });
     let dl = collectDownloads();
     await page.click('[data-action="share"]');
-    await page.waitForFunction(() => !document.querySelector('#toast').hidden);
-    await page.waitForTimeout(1000);
+    for (let i = 0; i < 100 && dl.list.length < 2; i++) await page.waitForTimeout(100);
+    await page.waitForTimeout(300);
     dl.stop();
     assert.ok(await page.locator('#sheet').isHidden(), 'saves straight away, no export sheet');
     assert.deepEqual(dl.list.map((d) => d.suggestedFilename()).sort(), ['Invoices - page 1.jpg', 'Invoices - page 2.jpg']);
@@ -317,7 +319,8 @@ async function main() {
     dl = collectDownloads();
     await page.click('#gas-done');
     await page.waitForSelector('#view-group.active');
-    await page.waitForTimeout(1500);
+    for (let i = 0; i < 100 && dl.list.length < 3; i++) await page.waitForTimeout(100);
+    await page.waitForTimeout(300);
     dl.stop();
     const gasNames = dl.list.map((d) => d.suggestedFilename()).sort();
     assert.equal(gasNames.length, 3);

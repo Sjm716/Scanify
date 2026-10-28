@@ -60,12 +60,22 @@ test('hit testing finds the topmost box', () => {
   assert.equal(hitTest(ctx, anns, 1000, 1400, 900, 1300), null);
 });
 
-test('fuel badge sits in the top-right corner at a size set by the short side', async () => {
+test('fuel badge sits a third of the way down, inside the square photo-grid thumbnail', async () => {
   const { fuelBadgeBox } = await import('../js/watermark.js');
+  // Grid thumbnails show the centred square of a photo.
+  const visible = (w, h, b) => {
+    const s = Math.min(w, h), left = (w - s) / 2, top = (h - s) / 2;
+    return b.x >= left && b.x + b.size <= left + s && b.y >= top && b.y + b.size <= top + s;
+  };
+  for (const [w, h] of [[3000, 4000], [4000, 3000], [1080, 1920], [1920, 1080], [3000, 3000]]) {
+    const b = fuelBadgeBox(w, h);
+    assert.ok(visible(w, h, b), `badge visible in thumbnail for ${w}x${h}`);
+    assert.ok(Math.abs(b.y + b.size / 2 - h / 3) <= 1, `centred a third of the way down for ${w}x${h}`);
+  }
   const land = fuelBadgeBox(4000, 3000);
   const port = fuelBadgeBox(3000, 4000);
   assert.equal(land.size, port.size); // same size whichever way the phone is held
   assert.equal(land.size, 270);
-  assert.ok(land.x + land.size < 4000 && land.y > 0 && land.y < 100);
+  assert.ok(port.x + port.size > 3000 * 0.9, 'portrait: near the right edge');
   assert.ok(fuelBadgeBox(100, 80).size >= 24); // never too small to see
 });
