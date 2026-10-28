@@ -1,6 +1,6 @@
 {
   "name": "scanify",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "private": true,
   "description": "Scanify: turn photos of documents into clean, square PDFs",
   "type": "module",

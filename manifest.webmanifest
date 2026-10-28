@@ -1,7 +1,7 @@
 {
   "name": "Scanify",
   "short_name": "Scanify",
-  "description": "Turn photos of documents into clean, square PDFs.",
+  "description": "Turn photos of documents into clean PDFs and JPGs, and keep a quick fuel log.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
