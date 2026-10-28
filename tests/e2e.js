@@ -102,7 +102,7 @@ async function main() {
   await context.addInitScript(() => delete window.showSaveFilePicker);
   const page = await context.newPage();
   const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('pageerror', (e) => errors.push(e.message + ' @ ' + (e.stack || '').split('\n').slice(1, 4).join(' | ')));
   page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
   const shot = async (name) => shots && page.screenshot({ path: join(shots, `${name}.png`) });
 
@@ -270,6 +270,74 @@ async function main() {
     await page.waitForSelector('.group-card');
     await shot('08-home');
     assert.match(await page.textContent('.group-card'), /Invoices.*2 pages/s);
+
+    const collectDownloads = () => {
+      const list = [];
+      const onDownload = (d) => list.push(d);
+      page.on('download', onDownload);
+      return { list, stop: () => page.off('download', onDownload) };
+    };
+
+    // --- Menu: default JPG + always save to device ------------------------
+    await page.click('[data-action="menu"]');
+    await page.waitForSelector('#sheet:not([hidden]) #always-save');
+    await page.click('#sheet [data-seg="format"] [data-value="jpg"]');
+    await page.check('#always-save');
+    await shot('09-menu');
+    await page.keyboard.press('Escape');
+    await page.click('.group-card');
+    await page.waitForSelector('#view-group.active');
+    assert.equal((await page.textContent('#export-label')).trim(), 'Save JPG');
+    let dl = collectDownloads();
+    await page.click('[data-action="share"]');
+    await page.waitForFunction(() => !document.querySelector('#toast').hidden);
+    await page.waitForTimeout(1000);
+    dl.stop();
+    assert.ok(await page.locator('#sheet').isHidden(), 'saves straight away, no export sheet');
+    assert.deepEqual(dl.list.map((d) => d.suggestedFilename()).sort(), ['Invoices - page 1.jpg', 'Invoices - page 2.jpg']);
+    // Email and WhatsApp are still reachable from the group menu.
+    await page.click('[data-action="group-menu"]');
+    await page.click('#sheet [data-sheet-action="export"]');
+    await page.waitForSelector('#sheet:not([hidden]) [data-sheet-action="whatsapp"]');
+    await page.keyboard.press('Escape');
+
+    // --- Gas photos: quick series, saved straight away, kept together ----
+    await page.click('[data-action="home"]');
+    await page.click('[data-action="gas"]');
+    await page.waitForSelector('#view-camera.active');
+    await page.waitForFunction(() => document.querySelector('#camera-video').videoWidth > 0);
+    assert.ok(await page.locator('#camera-overlay').isHidden(), 'no document outline in gas mode');
+    assert.match(await page.textContent('#camera-hint'), /odometer/);
+    for (let i = 0; i < 3; i++) await page.click('[data-action="capture"]');
+    assert.equal(await page.locator('#gas-thumbs canvas').count(), 3);
+    assert.equal((await page.textContent('#gas-done')).trim(), 'Done (3)');
+    await shot('10-gas-camera');
+    dl = collectDownloads();
+    await page.click('#gas-done');
+    await page.waitForSelector('#view-group.active');
+    await page.waitForTimeout(1500);
+    dl.stop();
+    const gasNames = dl.list.map((d) => d.suggestedFilename()).sort();
+    assert.equal(gasNames.length, 3);
+    gasNames.forEach((n, i) => assert.match(n, new RegExp(`^Gas \\d{4}-\\d{2}-\\d{2} \\d{2}\\.\\d{2} - photo ${i + 1}\\.jpg$`)));
+    for (const d of dl.list) {
+      const path = join(tmp, d.suggestedFilename());
+      await d.saveAs(path);
+      assert.deepEqual([...readFileSync(path).subarray(0, 3)], [0xff, 0xd8, 0xff], 'a JPEG file');
+    }
+    assert.match(await page.textContent('#group-meta'), /^3 photos/);
+    assert.equal((await page.textContent('#export-label')).trim(), 'Save photos');
+    assert.equal((await page.textContent('#add-label')).trim(), 'Add photos');
+    await shot('11-gas-group');
+    // Gas photos are kept as taken: no edit option.
+    await page.click('.page-card');
+    await page.waitForSelector('#sheet:not([hidden]) [data-sheet-action="delete"]');
+    assert.equal(await page.locator('#sheet [data-sheet-action="edit"]').count(), 0);
+    await page.keyboard.press('Escape');
+    await page.click('[data-action="home"]');
+    await page.waitForSelector('.gas-badge');
+    assert.match(await page.textContent('.group-card:has(.gas-badge)'), /Gas .*3 photos/s);
+    await shot('12-home-gas');
 
     assert.deepEqual(errors, []);
     console.log('E2E passed');

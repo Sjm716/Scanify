@@ -43,6 +43,17 @@ App), with no server and no accounts. Scans stay on the device.
     (choose WhatsApp in the share sheet). On desktop, Scanify opens a
     `wa.me` link with a pre-filled message and downloads the files so you
     can attach them.
+- **Gas photos.** The red pump button on the home screen opens a quick
+  camera for things like the odometer, pump display and receipt. Each tap
+  takes a plain JPG instantly (no editing or enhancement), and the screen
+  prompts for the usual three shots. Tap *Done* and the photos are saved
+  straight to the device. On a phone the share sheet opens with them
+  attached, so one tap on *Save Images* puts them in Photos. Each session
+  is kept together as its own group, marked with a red pump.
+- **Menu.** The ☰ button sets the default export format (PDF or JPG) and
+  *Always save to device*. With that on, a group's main button saves
+  straight away in the default format; email and WhatsApp stay in the
+  group's ⋮ menu under *Share or export…*.
 - **Dark mode.** The button next to the version number cycles through
   Automatic (matches the phone), Dark and Light. The choice is remembered.
 - Works offline once loaded, and can be installed to the home screen.

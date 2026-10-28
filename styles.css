@@ -77,7 +77,7 @@ h1 { font-size: 1.2rem; font-weight: 700; }
 .brand { display: flex; align-items: center; gap: 10px; }
 .brand h1 { font-size: 1.4rem; letter-spacing: -0.01em; }
 .brand-logo { border-radius: 9px; }
-.app-version { margin-left: auto; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.app-version { margin-left: auto; margin-right: 2px; font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
 .content { flex: 1; overflow-y: auto; padding: 16px 16px 120px; }
 
@@ -278,7 +278,36 @@ h1 { font-size: 1.2rem; font-weight: 700; }
 .menu-item.danger { color: var(--danger); }
 .menu-item.danger .ico { color: var(--danger); }
 .menu-item .sub { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
-.ico.whatsapp { background: #25d366; color: #fff; }
+.ico-whatsapp { background: #25d366 !important; color: #fff !important; }
+.ico-gas, .gas-btn { color: #e53935 !important; }
+.gas-badge { display: inline-flex; vertical-align: -3px; width: 18px; height: 18px; margin-right: 4px; color: #e53935; }
+.gas-badge svg { width: 18px; height: 18px; }
+.topbar .icon-btn { width: 40px; }
+
+/* Settings switch */
+.switch-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; color: var(--text); cursor: pointer; }
+.switch-row .sub { display: block; font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+.switch {
+  appearance: none; -webkit-appearance: none; flex: none; width: 50px; height: 30px; border-radius: 999px;
+  background: var(--border); position: relative; cursor: pointer; transition: background 0.15s; margin: 0;
+}
+.switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3); transition: transform 0.15s;
+}
+.switch:checked { background: var(--primary); }
+.switch:checked::after { transform: translateX(20px); }
+
+/* Gas camera */
+.camera-flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.camera-flash.on { animation: flash 0.25s ease-out; }
+@keyframes flash { from { opacity: 0.8; } to { opacity: 0; } }
+.gas-thumbs {
+  position: absolute; left: 0; right: 0; bottom: 10px; display: flex; gap: 8px; padding: 0 12px;
+  overflow-x: auto; justify-content: center;
+}
+.gas-thumbs canvas { height: 64px; width: auto; border-radius: 6px; border: 2px solid #fff; flex: none; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); }
+.gas-done { min-width: 96px; }
 .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
 .sheet-actions .btn { flex: 1; box-shadow: none; }
 
@@ -297,4 +326,13 @@ h1 { font-size: 1.2rem; font-weight: 700; }
   position: fixed; left: 50%; bottom: calc(96px + var(--safe-bottom)); transform: translateX(-50%);
   z-index: 30; background: #1f2430; color: #fff; padding: 12px 18px; border-radius: 12px;
   box-shadow: var(--shadow); max-width: calc(100% - 32px); font-size: 0.95rem;
+}
+
+/* Very small phones: keep all five header items on one line. */
+@media (max-width: 359px) {
+  .topbar { padding-left: 10px; padding-right: 8px; gap: 4px; }
+  .brand { gap: 8px; }
+  .brand h1 { font-size: 1.2rem; }
+  .brand-logo { width: 30px; height: 30px; }
+  .topbar .icon-btn { width: 36px; }
 }

@@ -31,6 +31,12 @@
       </div>
       <span id="app-version" class="app-version"></span>
       <button class="icon-btn" id="theme-toggle" data-action="theme" type="button"></button>
+      <button class="icon-btn gas-btn" data-action="gas" type="button" aria-label="Gas photos" title="Gas photos">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16zM6.5 6v4h5V6z" fill-rule="evenodd" style="fill: currentColor"/><path d="M2.5 21h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 9h1.5A1.5 1.5 0 0 1 17 10.5V16a1.5 1.5 0 0 0 3 0V8.5L17.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" data-action="menu" type="button" aria-label="Menu" title="Menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
     </header>
     <main class="content">
       <div id="group-list" class="group-list"></div>
@@ -70,11 +76,11 @@
     <div class="fab-row">
       <button class="btn secondary" data-action="group-add" type="button">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-        Add page
+        <span id="add-label">Add page</span>
       </button>
       <button class="btn primary big" data-action="share" type="button">
         <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 15V3M7 8l5-5 5 5M5 13v7h14v-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        Export
+        <span id="export-label">Export</span>
       </button>
     </div>
   </section>
@@ -85,15 +91,18 @@
       <video id="camera-video" playsinline muted autoplay></video>
       <svg id="camera-overlay" class="camera-overlay" preserveAspectRatio="none" aria-hidden="true"><polygon points=""/></svg>
       <p id="camera-hint" class="camera-hint">Fit the document in the frame</p>
+      <div id="camera-flash" class="camera-flash"></div>
+      <div id="gas-thumbs" class="gas-thumbs" hidden></div>
     </div>
     <div class="camera-bar">
       <button class="icon-btn light" data-action="camera-close" type="button" aria-label="Close camera">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
       </button>
       <button class="shutter" data-action="capture" type="button" aria-label="Take picture"></button>
-      <button class="icon-btn light" data-action="import" type="button" aria-label="Choose from photos">
+      <button class="icon-btn light" id="camera-import" data-action="import" type="button" aria-label="Choose from photos">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z M4 15l5-5 4 4 3-3 4 4" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
       </button>
+      <button class="btn primary gas-done" id="gas-done" data-action="gas-done" type="button" hidden>Done</button>
     </div>
   </section>
 
@@ -186,6 +195,7 @@
 
   <input type="file" id="file-import" accept="image/*" multiple hidden>
   <input type="file" id="file-capture" accept="image/*" capture="environment" hidden>
+  <input type="file" id="file-gas" accept="image/*" multiple hidden>
 
   <script type="module" src="js/app.js"></script>
 </body>

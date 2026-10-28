@@ -56,10 +56,11 @@ export async function getGroup(id) {
   return request(db.transaction('groups').objectStore('groups').get(id));
 }
 
-export async function createGroup(name) {
+/** `extra` adds fields such as { kind: 'gas' } for gas photo sessions. */
+export async function createGroup(name, extra = {}) {
   const db = await open();
   const now = Date.now();
-  const group = { id: newId(), name, createdAt: now, updatedAt: now, scanIds: [] };
+  const group = { id: newId(), name, createdAt: now, updatedAt: now, scanIds: [], ...extra };
   const tx = db.transaction('groups', 'readwrite');
   tx.objectStore('groups').put(group);
   await done(tx);
