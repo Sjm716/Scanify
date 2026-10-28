@@ -9,14 +9,22 @@ const PUMP_HOSE = 'M14 9h1.5A1.5 1.5 0 0 1 17 10.5V16a1.5 1.5 0 0 0 3 0V8.5L17.5
 const RED = '#e53935';
 
 /**
- * Where the badge goes on a photo: a square in the top-right corner sized
- * from the photo's shorter side, so it looks the same on any resolution.
+ * Where the badge goes on a photo, sized from the photo's shorter side so it
+ * looks the same at any resolution.
+ *
+ * Photo apps (Google Photos, iPhone Photos) show grid thumbnails as a square
+ * cut from the middle of the photo, so the badge is kept inside that square:
+ * at the right edge of the square, with its centre a third of the way down.
  */
 export function fuelBadgeBox(width, height) {
   const short = Math.min(width, height);
   const size = Math.max(24, Math.round(short * 0.09));
   const margin = Math.round(short * 0.025);
-  return { x: width - margin - size, y: margin, size };
+  const squareLeft = (width - short) / 2;
+  const squareTop = (height - short) / 2;
+  const x = Math.round(squareLeft + short - margin - size);
+  const y = Math.round(Math.max(squareTop + margin, height / 3 - size / 2));
+  return { x, y, size };
 }
 
 /** Draws the fuel badge onto a photo's 2D context. */
