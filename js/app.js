@@ -11,6 +11,7 @@ import {
 } from './imaging.js';
 import { buildPdf, PAGE_SIZES } from './pdf.js';
 import { APP_VERSION } from './version.js';
+import { drawFuelBadge } from './watermark.js';
 import { BACKGROUNDS, INKS, SIZES, backgroundCss, defaultInk, drawAnnotations, hitTest, layoutAnnotation } from './annotate.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -751,6 +752,7 @@ function captureGas() {
   flash.classList.add('on');
   // A video frame is instant (no shutter delay) and is never enhanced.
   const frame = scaledCanvas(video, 4096);
+  markFuelPhoto(frame);
   const thumb = scaledCanvas(frame, 360);
   const i = cam.shots.length;
   cam.shots.push(
@@ -759,6 +761,11 @@ function captureGas() {
   $('#gas-thumbs').append(scaledCanvas(thumb, 160));
   $('#camera-hint').textContent = gasHint(cam.shots.length);
   $('#gas-done').textContent = `Done (${cam.shots.length})`;
+}
+
+/** Stamps the red pump into the corner, unless turned off in the menu. */
+function markFuelPhoto(canvas) {
+  if (pref('fuelMark', '1') === '1') drawFuelBadge(canvas.getContext('2d'), canvas.width, canvas.height);
 }
 
 function gasFiles(shots) {
@@ -819,6 +826,7 @@ async function importGasFiles(files) {
     for (const f of files) {
       const bmp = await loadBitmap(f);
       const frame = scaledCanvas(bmp, 4096);
+      markFuelPhoto(frame);
       bmp.close?.();
       shots.push({ blob: await canvasToBlob(frame, 0.9), width: frame.width, height: frame.height, thumb: scaledCanvas(frame, 360) });
     }
@@ -854,6 +862,7 @@ async function closeCamera() {
 async function settingsMenu() {
   const format = pref('format', 'pdf');
   const always = pref('alwaysSave', '0') === '1';
+  const fuelMark = pref('fuelMark', '1') === '1';
   const action = await openSheet(
     `<h2>Menu</h2>
      <div class="field">Default format
@@ -867,7 +876,13 @@ async function settingsMenu() {
        </span>
        <input type="checkbox" class="switch" id="always-save" role="switch" ${always ? 'checked' : ''}>
      </label>
-     <div class="menu">${menuItem('gas', 'gas', 'Gas photos', 'Odometer, pump and receipt — saved straight to your device')}</div>
+     <label class="switch-row">
+       <span class="grow">Mark fuel log photos
+         <span class="sub">Adds a small red pump to the corner of each fuel log photo, so they're easy to spot in your photo album.</span>
+       </span>
+       <input type="checkbox" class="switch" id="fuel-mark" role="switch" ${fuelMark ? 'checked' : ''}>
+     </label>
+     <div class="menu">${menuItem('gas', 'gas', 'Fuel log', 'Odometer, pump and receipt — saved straight to your device')}</div>
      <p class="muted small center">Scanify v${APP_VERSION}</p>`,
     (a) => a,
     (sheet) => {
@@ -878,6 +893,7 @@ async function settingsMenu() {
         $$('.chip', chip.parentElement).forEach((c) => c.setAttribute('aria-checked', String(c === chip)));
       });
       sheet.querySelector('#always-save').addEventListener('change', (e) => setPref('alwaysSave', e.target.checked ? '1' : '0'));
+      sheet.querySelector('#fuel-mark').addEventListener('change', (e) => setPref('fuelMark', e.target.checked ? '1' : '0'));
     }
   );
   if (action === 'gas') openGas();

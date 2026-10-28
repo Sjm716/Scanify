@@ -49,7 +49,9 @@ App), with no server and no accounts. Scans stay on the device.
   prompts for the usual three shots. Tap *Done* and the photos are saved
   straight to the device. On a phone the share sheet opens with them
   attached, so one tap on *Save Images* puts them in Photos. Each session
-  is kept together as its own group, marked with a red pump.
+  is kept together as its own group, marked with a red pump. Each photo
+  also gets a small red pump stamped in its top-right corner, so fuel
+  photos stand out in the phone's photo album (switch it off in the menu).
 - **Quick delete.** Press and hold a group on the home screen (or
   right-click it on a computer) and a red garbage can pops up; tap it to
   delete the group with all its pages or photos. An *Undo* button shows for a
@@ -85,6 +87,7 @@ CSS and ES modules.
 | --- | --- |
 | `js/app.js` | UI: screens, camera, crop handles, editor, groups, export/sharing |
 | `js/imaging.js` | Edge detection, perspective correction, filters (pure functions) |
+| `js/watermark.js` | The red pump stamped on fuel log photos |
 | `js/annotate.js` | Text notes: layout, wrapping, see-through backgrounds, hit testing |
 | `js/pdf.js` | Small PDF writer that embeds the JPEG pages directly |
 | `js/db.js` | IndexedDB storage for groups and scans |
