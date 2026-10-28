@@ -71,6 +71,12 @@ function formatDate(ts) {
   return new Date(ts).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 }
 
+/** "3 pages", or "3 photos" for a gas session. */
+function countLabel(group, n) {
+  const noun = group.kind === 'gas' ? 'photo' : 'page';
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+}
+
 function defaultGroupName() {
   const d = new Date();
   const pad = (n) => String(n).padStart(2, '0');
@@ -152,11 +158,12 @@ const ICONS = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>',
   rename: '<path d="M4 7V5h16v2M12 5v14M9 19h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
   plus: '<path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  gas: '<path d="M4 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16zM6.5 6v4h5V6z" fill-rule="evenodd" style="fill: currentColor"/><path d="M2.5 21h13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M14 9h1.5A1.5 1.5 0 0 1 17 10.5V16a1.5 1.5 0 0 0 3 0V8.5L17.5 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 
 function menuItem(action, icon, label, sub = '', extra = '') {
   return `<button type="button" class="menu-item ${extra}" data-sheet-action="${action}">
-    <span class="ico ${icon === 'whatsapp' ? 'whatsapp' : ''}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg></span>
+    <span class="ico ico-${icon}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[icon]}</svg></span>
     <span>${escapeHtml(label)}${sub ? `<span class="sub">${escapeHtml(sub)}</span>` : ''}</span>
   </button>`;
 }
@@ -172,19 +179,23 @@ let sheetResolve = null;
  */
 function openSheet(html, onAction = (a) => a, onOpen) {
   closeSheet(null);
-  const sheet = $('#sheet');
+  const container = $('#sheet');
+  // A fresh element per sheet, so listeners added in onOpen go away with it
+  // instead of piling up on the shared container.
+  const sheet = document.createElement('div');
   sheet.innerHTML = html;
-  sheet.hidden = false;
+  container.replaceChildren(sheet);
+  container.hidden = false;
   $('#sheet-backdrop').hidden = false;
-  sheet.onclick = async (e) => {
+  sheet.addEventListener('click', async (e) => {
     const btn = e.target.closest('[data-sheet-action]');
     if (!btn) return;
     const result = await onAction(btn.dataset.sheetAction, sheet, btn);
     if (result !== undefined) closeSheet(result);
-  };
+  });
   onOpen?.(sheet);
   const focusable = sheet.querySelector('input, button');
-  if (focusable && !isTouchDevice()) focusable.focus();
+  if (focusable && !isTouchDevice() && !sheet.contains(document.activeElement)) focusable.focus();
   return new Promise((resolve) => (sheetResolve = resolve));
 }
 
@@ -242,7 +253,7 @@ function show(view) {
 
 window.addEventListener('popstate', () => {
   if (!$('#sheet').hidden) closeSheet(null);
-  else if (state.view === 'camera') stopCamera(true);
+  else if (state.view === 'camera') closeCamera();
   else if (state.view === 'editor') cancelEditor();
   else if (state.view === 'group') goHome();
   if (state.view !== 'home') history.pushState({ scanify: true }, '');
@@ -286,11 +297,11 @@ async function renderHome() {
       const imgs =
         (second ? `<img class="behind" src="${blobUrl(second.thumb)}" alt="">` : '') +
         (first ? `<img src="${blobUrl(first.thumb)}" alt="">` : '<span class="ph"></span>');
-      const pages = g.scanIds.length;
+      const badge = g.kind === 'gas' ? `<span class="gas-badge"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.gas}</svg></span>` : '';
       return `<button type="button" class="group-card" data-group="${g.id}">
         <span class="stack">${imgs}</span>
-        <span class="grow"><span class="name ellipsis" style="display:block">${escapeHtml(g.name)}</span>
-        <span class="meta" style="display:block">${pages} page${pages === 1 ? '' : 's'} · ${formatDate(g.updatedAt)}</span></span>
+        <span class="grow"><span class="name ellipsis" style="display:block">${badge}${escapeHtml(g.name)}</span>
+        <span class="meta" style="display:block">${countLabel(g, g.scanIds.length)} · ${formatDate(g.updatedAt)}</span></span>
       </button>`;
     })
   );
@@ -311,11 +322,25 @@ async function renderGroup() {
   if (!group) return goHome();
   releaseUrls();
   const scans = await db.getScans(group);
+  state.currentGroup = group;
   $('#group-title').textContent = group.name;
-  $('#group-meta').textContent = `${scans.length} page${scans.length === 1 ? '' : 's'} · Updated ${formatDate(group.updatedAt)}`;
+  $('#group-meta').textContent = `${countLabel(group, scans.length)} · Updated ${formatDate(group.updatedAt)}`;
+  $('#add-label').textContent = group.kind === 'gas' ? 'Add photos' : 'Add page';
+  // With quick saving (gas sessions, or "Always save to device"), the main
+  // button saves straight away, so build the files now: phones only open
+  // the share sheet if it is asked for during the tap itself.
+  const quick = quickSaveOptions(group);
+  $('#export-label').textContent = !quick ? 'Export' : group.kind === 'gas' ? 'Save photos' : `Save ${quick.format === 'jpg' ? 'JPG' : 'PDF'}`;
+  state.quickExport = null;
+  if (quick && scans.length) {
+    const q = { groupId: group.id, files: null };
+    q.promise = makeExport(group, quick).then((files) => (q.files = files));
+    q.promise.catch(() => {});
+    state.quickExport = q;
+  }
   $('#page-grid').innerHTML = scans
     .map(
-      (s, i) => `<button type="button" class="page-card" data-scan="${s.id}" aria-label="Page ${i + 1}">
+      (s, i) => `<button type="button" class="page-card" data-scan="${s.id}" aria-label="${group.kind === 'gas' ? 'Photo' : 'Page'} ${i + 1}">
         <img src="${blobUrl(s.thumb)}" alt="">
         <span class="num">${i + 1}</span>
       </button>`
@@ -334,9 +359,12 @@ async function pageMenu(scanId) {
   const index = group.scanIds.indexOf(scanId);
   const last = group.scanIds.length - 1;
   const others = (await db.listGroups()).filter((g) => g.id !== group.id);
+  const scan = await db.getScan(scanId);
+  // Gas photos are kept exactly as taken, so they have nothing to edit.
+  const raw = !!scan?.settings?.raw;
   const action = await openSheet(
-    `<h2>Page ${index + 1}</h2><div class="menu">
-      ${menuItem('edit', 'edit', 'Edit edges & print quality')}
+    `<h2>${raw ? 'Photo' : 'Page'} ${index + 1}</h2><div class="menu">
+      ${raw ? '' : menuItem('edit', 'edit', 'Edit edges & print quality')}
       ${index > 0 ? menuItem('up', 'up', 'Move earlier') : ''}
       ${index < last ? menuItem('down', 'down', 'Move later') : ''}
       ${menuItem('move', 'folder', 'Move to another group')}
@@ -344,7 +372,6 @@ async function pageMenu(scanId) {
     </div>`
   );
   if (action === 'edit') {
-    const scan = await db.getScan(scanId);
     await startEditor([scan.original], { source: 'edit', scan, groupId: group.id });
   } else if (action === 'up' || action === 'down') {
     const ids = group.scanIds.slice();
@@ -371,11 +398,14 @@ async function groupMenu() {
   const group = await db.getGroup(state.groupId);
   const action = await openSheet(
     `<h2>${escapeHtml(group.name)}</h2><div class="menu">
+      ${menuItem('export', 'share', 'Share or export…', 'PDF or JPG, email, WhatsApp')}
       ${menuItem('rename', 'rename', 'Rename group')}
       ${menuItem('delete', 'trash', 'Delete group', 'Deletes all pages in it', 'danger')}
     </div>`
   );
-  if (action === 'rename') {
+  if (action === 'export') {
+    await exportSheet();
+  } else if (action === 'rename') {
     const name = await promptSheet('Rename group', group.name);
     if (name) {
       await db.updateGroup(group.id, { name });
@@ -480,9 +510,11 @@ function processPage(sourceCanvas, settings, maxSide) {
 // Camera
 // ---------------------------------------------------------------------------
 
-async function openCamera() {
+/** mode 'scan' feeds the editor; 'gas' takes a quick series of plain photos. */
+async function openCamera({ mode = 'scan' } = {}) {
+  const gas = mode === 'gas';
   if (!navigator.mediaDevices?.getUserMedia) {
-    $('#file-capture').click();
+    $(gas ? '#file-gas' : '#file-capture').click();
     return;
   }
   try {
@@ -492,15 +524,30 @@ async function openCamera() {
     });
     const video = $('#camera-video');
     video.srcObject = stream;
-    state.camera = { stream, timer: null };
+    state.camera = { stream, timer: null, mode, shots: [], ready: [] };
+    setCameraMode(mode);
     show('camera');
     await video.play().catch(() => {});
-    state.camera.timer = setInterval(updateCameraOverlay, 450);
+    // Edge detection is only useful for documents.
+    if (!gas) state.camera.timer = setInterval(updateCameraOverlay, 450);
   } catch (err) {
     console.warn('Camera unavailable, falling back to file capture', err);
     toast('Camera not available — opening your device camera instead');
-    $('#file-capture').click();
+    $(gas ? '#file-gas' : '#file-capture').click();
   }
+}
+
+function setCameraMode(mode) {
+  const gas = mode === 'gas';
+  $('#camera-overlay').toggleAttribute('hidden', gas);
+  $('#camera-overlay polygon').setAttribute('points', '');
+  $('#gas-thumbs').hidden = !gas;
+  $('#gas-thumbs').innerHTML = '';
+  $('#camera-import').hidden = gas;
+  $('#gas-done').hidden = !gas;
+  $('#gas-done').textContent = 'Done';
+  $('#camera-hint').textContent = gas ? gasHint(0) : 'Fit the document in the frame';
+  $('[data-action="capture"]').setAttribute('aria-label', gas ? 'Take gas photo' : 'Take picture');
 }
 
 function stopCamera(goBack = false) {
@@ -560,6 +607,168 @@ async function capturePhoto() {
   }
   stopCamera();
   await startEditor([blob], { source: 'camera', groupId: state.groupId });
+}
+
+// ---------------------------------------------------------------------------
+// Gas photos: a quick series of plain JPGs (odometer, pump, receipt), kept
+// together as one session and saved straight to the device.
+// ---------------------------------------------------------------------------
+
+const GAS_HINTS = ['odometer', 'pump display', 'receipt'];
+
+function gasHint(n) {
+  return n < GAS_HINTS.length ? `Gas photo ${n + 1}: ${GAS_HINTS[n]}` : `${n} photos — tap Done when finished`;
+}
+
+/** Starts a gas session, or adds photos to an existing one. */
+async function openGas(groupId = null) {
+  const group = groupId ? await db.getGroup(groupId) : null;
+  state.gasTarget = group
+    ? { groupId: group.id, name: group.name, startCount: group.scanIds.length }
+    : { groupId: null, name: defaultGroupName().replace(/^Scan/, 'Gas'), startCount: 0 };
+  await openCamera({ mode: 'gas' });
+}
+
+function captureGas() {
+  const cam = state.camera;
+  const video = $('#camera-video');
+  if (!cam || !video.videoWidth) return;
+  const flash = $('#camera-flash');
+  flash.classList.remove('on');
+  void flash.offsetWidth; // restart the animation
+  flash.classList.add('on');
+  // A video frame is instant (no shutter delay) and is never enhanced.
+  const frame = scaledCanvas(video, 4096);
+  const thumb = scaledCanvas(frame, 360);
+  const i = cam.shots.length;
+  cam.shots.push(
+    canvasToBlob(frame, 0.9).then((blob) => (cam.ready[i] = { blob, width: frame.width, height: frame.height, thumb }))
+  );
+  $('#gas-thumbs').append(scaledCanvas(thumb, 160));
+  $('#camera-hint').textContent = gasHint(cam.shots.length);
+  $('#gas-done').textContent = `Done (${cam.shots.length})`;
+}
+
+function gasFiles(shots) {
+  const { name, startCount } = state.gasTarget;
+  return shots.map((s, i) => new File([s.blob], `${safeFileName(name)} - photo ${startCount + i + 1}.jpg`, { type: 'image/jpeg' }));
+}
+
+/** Stores the photos as one gas session and returns its group id. */
+async function storeGasShots(shots) {
+  const target = state.gasTarget;
+  const groupId = target.groupId || (await db.createGroup(target.name, { kind: 'gas' })).id;
+  for (const s of shots) {
+    const thumb = await canvasToBlob(s.thumb, 0.8);
+    await db.saveScan({
+      id: db.newId(),
+      groupId,
+      original: null,
+      processed: s.blob,
+      thumb,
+      width: s.width,
+      height: s.height,
+      settings: { raw: true },
+      createdAt: Date.now(),
+    });
+  }
+  return groupId;
+}
+
+async function finishGas() {
+  const cam = state.camera;
+  if (!cam) return;
+  if (!cam.shots.length) return stopCamera(true);
+  // Photos are encoded as they are taken, so normally they are all ready and
+  // the share sheet can open within this tap.
+  const shots = cam.ready.filter(Boolean).length === cam.shots.length ? cam.ready : await Promise.all(cam.shots);
+  const saving = saveToDevice(gasFiles(shots)).catch((err) => console.error(err));
+  stopCamera();
+  busy(true, 'Saving photos…');
+  try {
+    const groupId = await storeGasShots(shots);
+    busy(false);
+    await openGroup(groupId);
+  } catch (err) {
+    busy(false);
+    console.error(err);
+    toast('Saving failed — your device may be low on storage');
+  }
+  await saving;
+}
+
+/** Fallback when the camera can't be opened in the app: photos picked from the system camera or library. */
+async function importGasFiles(files) {
+  if (!files.length) return;
+  busy(true, 'Saving photos…');
+  let shots, groupId;
+  try {
+    shots = [];
+    for (const f of files) {
+      const bmp = await loadBitmap(f);
+      const frame = scaledCanvas(bmp, 4096);
+      bmp.close?.();
+      shots.push({ blob: await canvasToBlob(frame, 0.9), width: frame.width, height: frame.height, thumb: scaledCanvas(frame, 360) });
+    }
+    groupId = await storeGasShots(shots);
+  } catch (err) {
+    console.error(err);
+    toast('Could not save those photos');
+    return;
+  } finally {
+    busy(false);
+  }
+  await openGroup(groupId);
+  // The file picker doesn't count as a tap for sharing, so ask for one.
+  const files2 = gasFiles(shots);
+  const a = await openSheet(
+    `<h2>${shots.length} gas photo${shots.length === 1 ? '' : 's'} added</h2>
+     <div class="menu">${menuItem('save', 'download', 'Save to device')}</div>`
+  );
+  if (a === 'save') await saveToDevice(files2);
+}
+
+async function closeCamera() {
+  const cam = state.camera;
+  const n = cam?.mode === 'gas' ? cam.shots.length : 0;
+  if (n && !(await confirmSheet(`Discard ${n} gas photo${n === 1 ? '' : 's'}?`, 'They have not been saved yet.', 'Discard'))) return;
+  stopCamera(true);
+}
+
+// ---------------------------------------------------------------------------
+// Menu
+// ---------------------------------------------------------------------------
+
+async function settingsMenu() {
+  const format = pref('format', 'pdf');
+  const always = pref('alwaysSave', '0') === '1';
+  const action = await openSheet(
+    `<h2>Menu</h2>
+     <div class="field">Default format
+       <div class="seg" data-seg="format">${Object.entries(FORMATS)
+         .map(([k, v]) => `<button type="button" class="chip" role="radio" data-value="${k}" aria-checked="${k === format}">${escapeHtml(v.label)}</button>`)
+         .join('')}</div>
+     </div>
+     <label class="switch-row">
+       <span class="grow">Always save to device
+         <span class="sub">Export saves straight away in the default format. Email and WhatsApp stay in each group's ⋮ menu.</span>
+       </span>
+       <input type="checkbox" class="switch" id="always-save" role="switch" ${always ? 'checked' : ''}>
+     </label>
+     <div class="menu">${menuItem('gas', 'gas', 'Gas photos', 'Odometer, pump and receipt — saved straight to your device')}</div>
+     <p class="muted small center">Scanify v${APP_VERSION}</p>`,
+    (a) => a,
+    (sheet) => {
+      sheet.addEventListener('click', (e) => {
+        const chip = e.target.closest('[data-seg] .chip');
+        if (!chip) return;
+        setPref('format', chip.dataset.value);
+        $$('.chip', chip.parentElement).forEach((c) => c.setAttribute('aria-checked', String(c === chip)));
+      });
+      sheet.querySelector('#always-save').addEventListener('change', (e) => setPref('alwaysSave', e.target.checked ? '1' : '0'));
+    }
+  );
+  if (action === 'gas') openGas();
 }
 
 // ---------------------------------------------------------------------------
@@ -1073,9 +1282,10 @@ async function makeJpgs(group, { quality }) {
   const scans = await db.getScans(group);
   const q = QUALITY[quality] || QUALITY.high;
   const base = safeFileName(group.name);
+  const noun = group.kind === 'gas' ? 'photo' : 'page';
   const files = [];
   for (const [i, s] of scans.entries()) {
-    const name = scans.length === 1 ? `${base}.jpg` : `${base} - page ${i + 1}.jpg`;
+    const name = scans.length === 1 ? `${base}.jpg` : `${base} - ${noun} ${i + 1}.jpg`;
     files.push(new File([await reencode(s.processed, q)], name, { type: 'image/jpeg' }));
   }
   return files;
@@ -1177,6 +1387,35 @@ async function sendWhatsApp(files, group) {
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener');
 }
 
+/**
+ * Export options when the main button should save straight away: always for
+ * gas sessions (original JPGs), and for other groups when "Always save to
+ * device" is on (default format). Null means show the export sheet.
+ */
+function quickSaveOptions(group) {
+  if (group.kind === 'gas') return { format: 'jpg', quality: 'max', pageSize: 'a4' };
+  if (pref('alwaysSave', '0') !== '1') return null;
+  return { format: pref('format', 'pdf'), pageSize: pref('pageSize', 'a4'), quality: pref('quality', 'high') };
+}
+
+function exportAction() {
+  const q = state.quickExport;
+  if (!q || q.groupId !== state.groupId) return exportSheet();
+  if (q.files) return saveToDevice(q.files);
+  busy(true, 'Preparing…');
+  q.promise.then(
+    (files) => {
+      busy(false);
+      return saveToDevice(files);
+    },
+    (err) => {
+      busy(false);
+      console.error(err);
+      toast('Could not create the files');
+    }
+  );
+}
+
 async function exportSheet() {
   const group = await db.getGroup(state.groupId);
   if (!group?.scanIds.length) return;
@@ -1253,7 +1492,8 @@ async function exportSheet() {
         if (!chip) return;
         const name = chip.parentElement.dataset.seg;
         opts[name] = chip.dataset.value;
-        setPref(name, chip.dataset.value);
+        // The format here is a one-off; the default is set in the menu.
+        if (name !== 'format') setPref(name, chip.dataset.value);
         $$('.chip', chip.parentElement).forEach((c) => c.setAttribute('aria-checked', String(c === chip)));
         syncLabels(sheet);
         rebuild();
@@ -1278,6 +1518,11 @@ $('#file-import').addEventListener('change', (e) => {
   importFiles(e.target.files);
   e.target.value = '';
 });
+$('#file-gas').addEventListener('change', (e) => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  importGasFiles(files);
+});
 $('#file-capture').addEventListener('change', async (e) => {
   const [file] = e.target.files;
   e.target.value = '';
@@ -1293,16 +1538,23 @@ const actions = {
   import: () => $('#file-import').click(),
   'group-menu': groupMenu,
   'group-add': async () => {
+    if (state.currentGroup?.kind === 'gas') return openGas(state.groupId);
     const a = await openSheet(
       `<h2>Add a page</h2><div class="menu">${menuItem('scan', 'camera', 'Scan with camera')}${menuItem('import', 'photos', 'Import photos')}</div>`
     );
     if (a === 'scan') openCamera();
     else if (a === 'import') $('#file-import').click();
   },
-  share: exportSheet,
+  share: exportAction,
+  menu: settingsMenu,
+  gas: () => {
+    state.groupId = null;
+    openGas();
+  },
+  'gas-done': finishGas,
   theme: cycleTheme,
-  'camera-close': () => stopCamera(true),
-  capture: capturePhoto,
+  'camera-close': closeCamera,
+  capture: () => (state.camera?.mode === 'gas' ? captureGas() : capturePhoto()),
   'editor-cancel': cancelEditor,
   'editor-retake': editorRetake,
   'editor-next': () => {
