@@ -84,8 +84,14 @@ runs in the browser on a computer (Chrome, Edge, Firefox or Safari). Open
 - **Your recordings.** Everything is kept on the device in IndexedDB,
   listed with thumbnails, until you delete it. Nothing is uploaded.
 
-Phones and tablets can't record the screen from a web page, so the
-recorder points those users to the built-in recorder instead.
+- **Phones and tablets.** iPhone and iPad browsers can't record the screen,
+  and Android Chrome only sometimes can. Where it can, the recorder works
+  as on a computer. Otherwise the page shows two steps: record with the
+  phone's own screen recorder (with iPhone or Android instructions), then
+  tap *Add a screen recording* to add the video from Photos or the gallery.
+  Added videos (MOV, MP4, WebM) get a thumbnail and can be renamed, shared,
+  downloaded and kept like any other recording. Computers can add existing
+  videos too.
 
 ## Running it
 

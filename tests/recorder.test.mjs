@@ -61,3 +61,24 @@ test('Stopwatch skips paused time', () => {
   assert.equal(sw.elapsed(), 3500);
   assert.equal(sw.running, true);
 });
+
+test('imports: .mov, file types from names, video detection', async () => {
+  const { extensionFor, mimeForFile, isVideoFile, baseName } = await import('../recorder/js/core.js');
+  assert.equal(extensionFor('video/quicktime'), 'mov');
+  assert.equal(mimeForFile('', 'ScreenRecording_01.MOV'), 'video/quicktime');
+  assert.equal(mimeForFile('video/mp4', 'x.mov'), 'video/mp4');
+  assert.equal(mimeForFile('', 'notes.txt'), '');
+  assert.equal(isVideoFile('', 'clip.m4v'), true);
+  assert.equal(isVideoFile('video/3gpp', 'a'), true);
+  assert.equal(isVideoFile('image/png', 'a.png'), false);
+  assert.equal(baseName('Screen Recording 2026-11-18.mp4'), 'Screen Recording 2026-11-18');
+});
+
+test('phoneKind', async () => {
+  const { phoneKind } = await import('../recorder/js/core.js');
+  assert.equal(phoneKind('Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'), 'ios');
+  assert.equal(phoneKind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 5), 'ios'); // iPad
+  assert.equal(phoneKind('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 'MacIntel', 0), '');
+  assert.equal(phoneKind('Mozilla/5.0 (Linux; Android 15; Pixel 9) Chrome/140'), 'android');
+  assert.equal(phoneKind('Mozilla/5.0 (Windows NT 10.0; Win64; x64)'), '');
+});

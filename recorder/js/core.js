@@ -27,7 +27,38 @@ export function pickMimeType(isSupported) {
 
 /** File extension for a MIME type such as "video/webm;codecs=vp9". */
 export function extensionFor(mime) {
-  return /mp4/i.test(mime || '') ? 'mp4' : 'webm';
+  const m = mime || '';
+  if (/quicktime/i.test(m)) return 'mov'; // iPhone screen recordings
+  if (/mp4|m4v/i.test(m)) return 'mp4';
+  return 'webm';
+}
+
+/** MIME type for an imported file, using its name when the browser gives no type. */
+export function mimeForFile(type, name) {
+  if (type) return type;
+  const ext = String(name || '').split('.').pop().toLowerCase();
+  return { mov: 'video/quicktime', mp4: 'video/mp4', m4v: 'video/mp4', webm: 'video/webm' }[ext] || '';
+}
+
+/** True for files that look like videos, by type or by name. */
+export function isVideoFile(type, name) {
+  return /^video\//.test(type || '') || /\.(mov|mp4|m4v|webm)$/i.test(name || '');
+}
+
+/** File name without its extension, for naming imported videos. */
+export function baseName(name) {
+  return String(name || '').replace(/\.[^.]+$/, '').trim();
+}
+
+/**
+ * 'ios', 'android' or '' for other devices. iPads report a Mac user agent,
+ * so a "Mac" with a touch screen counts as iOS.
+ */
+export function phoneKind(userAgent = '', platform = '', maxTouchPoints = 0) {
+  if (/iPhone|iPad|iPod/i.test(userAgent)) return 'ios';
+  if (platform === 'MacIntel' && maxTouchPoints > 1) return 'ios';
+  if (/Android/i.test(userAgent)) return 'android';
+  return '';
 }
 
 /** 75 -> "1:15", 3725 -> "1:02:05". Takes seconds. */
