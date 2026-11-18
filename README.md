@@ -66,12 +66,33 @@ App), with no server and no accounts. Scans stay on the device.
   Automatic (matches the phone), Dark and Light. The choice is remembered.
 - Works offline once loaded, and can be installed to the home screen.
 
+## Recorder (screen recording)
+
+The `recorder/` folder holds a separate, one-click screen recorder that
+runs in the browser on a computer (Chrome, Edge, Firefox or Safari). Open
+`/recorder/` on the same site.
+
+- **One button.** Press *Start recording*, pick a screen, window or tab,
+  and you're recording. A big timer, *Pause* and *Stop & save* are all
+  there is; the browser's own *Stop sharing* button also stops it. The tab
+  title shows the time (`● 1:23`) so you can see it from other windows.
+- **Options**, remembered between visits: microphone (with a level meter),
+  computer sound, a floating camera bubble (picture-in-picture, so it shows
+  over everything you record) and a 3-second countdown.
+- **Done screen.** Watch the recording, rename it, then *Download* (MP4
+  where the browser can record it, otherwise WebM), *Share* or *Delete*.
+- **Your recordings.** Everything is kept on the device in IndexedDB,
+  listed with thumbnails, until you delete it. Nothing is uploaded.
+
+Phones and tablets can't record the screen from a web page, so the
+recorder points those users to the built-in recorder instead.
+
 ## Running it
 
 The camera needs a secure origin: `https://`, or `http://localhost`.
 
 ```sh
-npm start          # serves the app at http://localhost:8080
+npm start          # serves the app at http://localhost:8080 (recorder: /recorder/)
 ```
 
 To use it on a phone, host the folder on any static HTTPS host. The
@@ -95,6 +116,7 @@ CSS and ES modules.
 | `js/db.js` | IndexedDB storage for groups and scans |
 | `sw.js`, `manifest.webmanifest` | Offline cache and installability |
 | `tools/make-logo.cjs` | Generates the logo and icons |
+| `recorder/` | The screen recorder: `js/app.js` (UI, capture, mixing), `js/core.js` (pure helpers), `js/db.js` (storage) |
 
 The version shown on the home screen comes from `js/version.js`. Bump it,
 and `"version"` in `package.json`, with each release; a test checks they

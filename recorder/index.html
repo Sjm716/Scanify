@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Recorder</title>
+  <meta name="description" content="Record your screen, a window or a browser tab in one click, with optional microphone, computer sound and camera bubble. Runs in the browser; recordings stay on your device.">
+  <meta name="theme-color" content="#dc2626">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Recorder">
+  <link rel="stylesheet" href="recorder.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img src="icons/icon.svg" alt="" width="34" height="34">
+      <h1>Recorder</h1>
+    </div>
+    <span class="tagline muted">Recordings stay on this device</span>
+  </header>
+
+  <main>
+    <!-- Not supported (phones, very old browsers) -->
+    <section id="unsupported" class="card center" hidden>
+      <h2>This browser can't record the screen</h2>
+      <p class="muted">Open this page in Chrome, Edge, Firefox or Safari on a computer.</p>
+      <p class="muted small">On a phone, use the built-in recorder instead:
+        <strong>iPhone</strong> – Control Center → Screen Recording;
+        <strong>Android</strong> – Quick Settings → Screen record.</p>
+    </section>
+
+    <!-- Step 1: ready -->
+    <section id="view-ready" class="card center" hidden>
+      <button id="btn-record" class="record-btn" type="button" aria-describedby="record-hint">
+        <span class="record-dot" aria-hidden="true"></span>
+        <span>Start recording</span>
+      </button>
+      <p id="record-hint" class="muted small">Next, you'll pick a screen, window or tab to record.</p>
+
+      <div class="options" role="group" aria-label="Recording options">
+        <button class="chip" type="button" data-opt="mic" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V22h2v-3.1a7 7 0 0 0 6-6.9h-2Z"/></svg>
+          Microphone
+        </button>
+        <button class="chip" type="button" data-opt="systemAudio" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3Zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4ZM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6Z"/></svg>
+          Computer sound
+        </button>
+        <button class="chip" type="button" data-opt="camera" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4Z"/></svg>
+          Camera bubble
+        </button>
+        <button class="chip" type="button" data-opt="countdown" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 1H9v2h6V1Zm-4 13h2V8h-2v6Zm8-6.6 1.4-1.4-1.4-1.4-1.5 1.4A9 9 0 1 0 21 13a9 9 0 0 0-2-5.6ZM12 20a7 7 0 1 1 0-14 7 7 0 0 1 0 14Z"/></svg>
+          3-second countdown
+        </button>
+      </div>
+      <p id="option-note" class="muted small" hidden></p>
+
+      <div id="camera-preview-wrap" class="camera-preview" hidden>
+        <video id="camera-preview" muted playsinline autoplay></video>
+        <span class="small muted">The camera floats over your screen while you record. Drag its corner to move or resize it.</span>
+      </div>
+    </section>
+
+    <!-- Countdown -->
+    <section id="view-countdown" class="card center" hidden>
+      <div id="countdown-number" class="countdown" aria-live="assertive">3</div>
+      <p class="muted">Recording starts in a moment…</p>
+      <button id="btn-cancel-countdown" class="btn ghost" type="button">Cancel</button>
+    </section>
+
+    <!-- Step 2: recording -->
+    <section id="view-recording" class="card center" hidden>
+      <div class="live-row">
+        <span id="live-badge" class="live-badge"><span class="pulse" aria-hidden="true"></span><span id="live-label">REC</span></span>
+        <span id="timer" class="timer" role="timer" aria-live="off">0:00</span>
+      </div>
+      <video id="screen-preview" class="screen-preview" muted playsinline autoplay></video>
+      <div id="level-wrap" class="level" hidden title="Microphone level"><span id="level-bar"></span></div>
+      <div class="actions">
+        <button id="btn-pause" class="btn" type="button">Pause</button>
+        <button id="btn-stop" class="btn danger" type="button">
+          <span class="stop-square" aria-hidden="true"></span> Stop &amp; save
+        </button>
+      </div>
+      <p class="muted small">You can also stop with your browser's <em>Stop sharing</em> button.</p>
+    </section>
+
+    <!-- Step 3: done -->
+    <section id="view-result" class="card" hidden>
+      <video id="player" class="player" controls playsinline></video>
+      <label class="name-field">
+        <span class="small muted">Name</span>
+        <input id="rec-name" type="text" autocomplete="off" spellcheck="false">
+      </label>
+      <p id="rec-meta" class="muted small"></p>
+      <div class="actions wrap">
+        <button id="btn-download" class="btn primary" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 4h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V4ZM5 18h14v2H5v-2Z"/></svg>
+          Download
+        </button>
+        <button id="btn-share" class="btn" type="button" hidden>Share…</button>
+        <button id="btn-delete" class="btn ghost danger-text" type="button">Delete</button>
+        <button id="btn-new" class="btn" type="button">
+          <span class="record-dot sm" aria-hidden="true"></span> New recording
+        </button>
+      </div>
+    </section>
+
+    <!-- Library -->
+    <section id="library" aria-labelledby="library-title" hidden>
+      <h2 id="library-title">Your recordings</h2>
+      <ul id="library-list" class="library"></ul>
+    </section>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
