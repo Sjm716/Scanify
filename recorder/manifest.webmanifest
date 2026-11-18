@@ -1,0 +1,14 @@
+{
+  "name": "Recorder",
+  "short_name": "Recorder",
+  "description": "Record your screen, a window or a tab in one click.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f6fa",
+  "theme_color": "#dc2626",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
