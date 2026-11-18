@@ -1,7 +1,7 @@
 // Offline support for the recorder: network first, cache as a fallback.
 // Bump CACHE when the list of files changes.
-const CACHE = 'recorder-v1';
-const SHELL = ['./', 'index.html', 'recorder.css', 'manifest.webmanifest', 'icon.svg', 'js/app.js', 'js/core.js', 'js/db.js'];
+const CACHE = 'recorder-v2';
+const SHELL = ['./', 'index.html', 'recorder.css', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png', 'js/app.js', 'js/core.js', 'js/db.js'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
