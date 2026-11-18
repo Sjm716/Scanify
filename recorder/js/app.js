@@ -6,11 +6,15 @@ import {
   defaultName,
   safeFileName,
   Stopwatch,
+  mimeForFile,
+  isVideoFile,
+  baseName,
+  phoneKind,
 } from './core.js';
 import { saveRecording, deleteRecording, listRecordings } from './db.js';
 
 const $ = (id) => document.getElementById(id);
-const views = ['unsupported', 'view-ready', 'view-countdown', 'view-recording', 'view-result'];
+const views = ['view-phone', 'view-ready', 'view-countdown', 'view-recording', 'view-result'];
 
 // ---------- Options (remembered between visits) ----------
 const OPTS_KEY = 'recorder.options';
@@ -28,7 +32,16 @@ const saveOpts = () => {
   }
 };
 
-const canRecord = !!(navigator.mediaDevices?.getDisplayMedia && window.MediaRecorder);
+let canRecord = !!(navigator.mediaDevices?.getDisplayMedia && window.MediaRecorder);
+const phone = phoneKind(navigator.userAgent, navigator.platform, navigator.maxTouchPoints);
+
+// How to use the phone's own screen recorder.
+$('phone-how').textContent =
+  phone === 'ios'
+    ? 'Open Control Center (swipe down from the top-right corner) and tap Screen Recording. Press and hold it to turn on the microphone. Recordings go to Photos.'
+    : phone === 'android'
+      ? 'Swipe down twice from the top of the screen and tap Screen record (on Samsung: Screen recorder). Recordings go to your gallery.'
+      : "Use your device's built-in screen recorder.";
 const canBubble = !!document.pictureInPictureEnabled;
 
 // ---------- Small UI helpers ----------
@@ -159,6 +172,13 @@ async function startRecording() {
     session = null;
     btn.disabled = false;
     if (document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+    if (phone && err?.name !== 'NotAllowedError') {
+      // The browser offers screen capture but the phone won't do it.
+      canRecord = false;
+      showReady();
+      toast("This phone's browser can't record the screen. Use the phone's recorder, then add the video here.", 6000);
+      return;
+    }
     toast(err?.name === 'NotAllowedError' ? 'Nothing was recorded.' : `Couldn't start: ${err?.message || err}`);
     return;
   }
@@ -350,7 +370,7 @@ async function finish(s) {
     return;
   }
   const rec = {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2),
+    id: newId(),
     name: defaultName(s.started),
     created: s.started.getTime(),
     duration: s.stopwatch.elapsed() / 1000,
@@ -394,6 +414,8 @@ function showResult(rec) {
     }
   };
   $('rec-name').value = rec.name;
+  $('new-label').textContent = canRecord ? 'New recording' : 'Add another';
+  $('new-dot').hidden = !canRecord;
   renderMeta();
   const file = toFile(rec);
   $('btn-share').hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
@@ -437,9 +459,110 @@ function showReady() {
   current = null;
   $('player').removeAttribute('src');
   $('player').load();
-  show(canRecord ? 'view-ready' : 'unsupported');
+  show(canRecord ? 'view-ready' : 'view-phone');
   markCurrent();
   if (opts.camera && canRecord) startCamera();
+}
+
+// ---------- Adding videos (phone recordings, existing files) ----------
+const newId = () =>
+  crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+
+/** Reads a video's length and grabs a thumbnail. Never rejects. */
+function probeVideo(blob) {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(blob);
+    const video = document.createElement('video');
+    const result = { duration: 0, thumb: null };
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      video.removeAttribute('src');
+      video.load();
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+    const timer = setTimeout(finish, 10_000);
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'auto';
+    video.onerror = finish;
+    video.onloadedmetadata = () => {
+      if (Number.isFinite(video.duration)) result.duration = video.duration;
+    };
+    video.onloadeddata = () => {
+      video.currentTime = Math.min(1, (result.duration || 0) / 2);
+    };
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        const w = 320;
+        const h = 180;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        const scale = Math.min(w / video.videoWidth, h / video.videoHeight);
+        const dw = video.videoWidth * scale;
+        const dh = video.videoHeight * scale;
+        ctx.drawImage(video, (w - dw) / 2, (h - dh) / 2, dw, dh);
+        canvas.toBlob((b) => {
+          result.thumb = b;
+          finish();
+        }, 'image/jpeg', 0.8);
+      } catch {
+        finish();
+      }
+    };
+    video.src = url;
+  });
+}
+
+async function importFiles(files) {
+  const videos = [...files].filter((f) => isVideoFile(f.type, f.name));
+  if (!videos.length) {
+    if (files.length) toast("That isn't a video. Choose a screen recording.");
+    return;
+  }
+  toast(videos.length > 1 ? `Adding ${videos.length} videos…` : 'Adding video…', 20_000);
+  let last = null;
+  let failed = 0;
+  for (const file of videos) {
+    const { duration, thumb } = await probeVideo(file);
+    const created = file.lastModified || Date.now();
+    const rec = {
+      id: newId(),
+      name: baseName(file.name) || defaultName(new Date(created)),
+      created,
+      duration,
+      size: file.size,
+      mime: mimeForFile(file.type, file.name),
+      blob: file,
+      thumb,
+    };
+    try {
+      await saveRecording(rec);
+    } catch {
+      failed++;
+      unsaved.set(rec.id, rec);
+    }
+    last = rec;
+  }
+  navigator.storage?.persist?.().catch(() => {});
+  await renderLibrary();
+  if (last) showResult(last);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast(
+    failed
+      ? "Added, but this device is out of storage, so it won't be kept after you close the page."
+      : videos.length > 1
+        ? `Added ${videos.length} videos.`
+        : 'Added. Rename it, share it or download it.',
+    failed ? 6000 : 3200
+  );
 }
 
 // ---------- Library ----------
@@ -530,6 +653,15 @@ $('btn-delete').addEventListener('click', async () => {
   showReady();
 });
 $('btn-new').addEventListener('click', showReady);
+const pickFiles = () => $('file-input').click();
+$('btn-import').addEventListener('click', pickFiles);
+$('btn-import-phone').addEventListener('click', pickFiles);
+$('file-input').addEventListener('change', (e) => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  if (session) return toast('Stop the current recording first.');
+  importFiles(files);
+});
 $('rec-name').addEventListener('change', (e) => rename(e.target.value));
 $('rec-name').addEventListener('keydown', (e) => e.key === 'Enter' && e.target.blur());
 

@@ -23,13 +23,23 @@
   </header>
 
   <main>
-    <!-- Not supported (phones, very old browsers) -->
-    <section id="unsupported" class="card center" hidden>
-      <h2>This browser can't record the screen</h2>
-      <p class="muted">Open this page in Chrome, Edge, Firefox or Safari on a computer.</p>
-      <p class="muted small">On a phone, use the built-in recorder instead:
-        <strong>iPhone</strong> – Control Center → Screen Recording;
-        <strong>Android</strong> – Quick Settings → Screen record.</p>
+    <!-- Phones and tablets whose browser can't record the screen -->
+    <section id="view-phone" class="card center" hidden>
+      <h2>Record your screen</h2>
+      <p class="muted">Your phone's browser can't record the screen, but your phone can. It takes two steps:</p>
+      <ol class="steps">
+        <li>
+          <strong>Record</strong> with the phone's screen recorder.
+          <span id="phone-how" class="muted small"></span>
+        </li>
+        <li>
+          <strong>Add it here</strong> to name it, keep it with your other recordings and share it.
+        </li>
+      </ol>
+      <button id="btn-import-phone" class="btn primary big" type="button">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z"/></svg>
+        Add a screen recording
+      </button>
     </section>
 
     <!-- Step 1: ready -->
@@ -59,6 +69,7 @@
         </button>
       </div>
       <p id="option-note" class="muted small" hidden></p>
+      <button id="btn-import" class="link-btn small" type="button">or add a video you already have</button>
 
       <div id="camera-preview-wrap" class="camera-preview" hidden>
         <video id="camera-preview" muted playsinline autoplay></video>
@@ -106,7 +117,7 @@
         <button id="btn-share" class="btn" type="button" hidden>Share…</button>
         <button id="btn-delete" class="btn ghost danger-text" type="button">Delete</button>
         <button id="btn-new" class="btn" type="button">
-          <span class="record-dot sm" aria-hidden="true"></span> New recording
+          <span id="new-dot" class="record-dot sm" aria-hidden="true"></span> <span id="new-label">New recording</span>
         </button>
       </div>
     </section>
@@ -118,6 +129,7 @@
     </section>
   </main>
 
+  <input id="file-input" type="file" accept="video/*,.mov,.mp4,.m4v,.webm" multiple hidden>
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
   <script type="module" src="js/app.js"></script>
